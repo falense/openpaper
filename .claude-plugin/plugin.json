@@ -1,0 +1,9 @@
+{
+  "name": "openpaper",
+  "version": "0.7.2",
+  "description": "A pipeline for agents to parse any news source and deliver a curated newspaper-style digest",
+  "author": {
+    "name": "Sondre Engebråten"
+  },
+  "license": "MIT"
+}

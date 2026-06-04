@@ -1,0 +1,325 @@
+{#
+  OpenPaper — Broadsheet Template (Responsive)
+  =============================================
+
+  A single responsive template that works from mobile (375px) through
+  full desktop spread (1960px). Uses clamp(), CSS multi-column, and
+  auto-fit grids for intrinsic responsiveness, with two explicit
+  breakpoints for structural changes:
+
+    <= 680px  — stack lead feature, hide flanking quotes, collapse rail
+    >= 1400px — enable center-fold shadow effect
+
+  Expected data model: an `edition` object with:
+
+    edition.date              -- "Thursday, June 4, 2026"
+    edition.date_formal       -- "Thursday, the Fourth of June, MMXXVI"
+    edition.volume            -- "MMXXVI"
+    edition.number            -- "156"
+    edition.location          -- "Oslo, Norway"
+    edition.reading_time      -- "22 min"
+    edition.article_count     -- 14
+    edition.weather.icon      -- "cloud" | "sun" | "rain" | "snow"
+    edition.weather.temp      -- 14
+    edition.weather.description -- "Overcast, clearing by noon"
+    edition.weather.high      -- 17
+    edition.weather.low       -- 9
+    edition.weather.wind      -- "NW 8 km/h"
+    edition.weather.forecast  -- [{"day": "FRI", "temp": 18}, ...]
+    edition.markets           -- [{"name": "OSEBX", "value": "1,486", "change": "+0.6%", "direction": "up"}, ...]
+    edition.lead.kicker       -- "The Lead . Public Technology"
+    edition.lead.title        -- "A Newspaper That Knows Only You Will Ever Read It"
+    edition.lead.deck         -- "Personalised journalism leaves the laboratory..."
+    edition.lead.byline       -- "By the OpenPaper Desk . Filed 06:14 in Oslo"
+    edition.lead.paragraphs   -- ["The spread you are reading...", ...]
+    edition.lead.annotation   -- "because you follow Public Technology"
+    edition.lead.photo_caption -- "First light over the harbour..."
+    edition.stories           -- [{kicker, title, paragraphs, size, has_thumb}, ...]
+    edition.briefs            -- [{"bold": "Oslo", "text": "moves to publish..."}, ...]
+    edition.sections_index    -- [{"name": "Public Tech", "page": "A2"}, ...]
+    edition.tagline           -- "All the news that fits the day you are about to have."
+    edition.word_of_day       -- {"word": "Petrichor", "definition": "the scent of first rain"}
+    edition.printed_time      -- "06:14 CET"
+
+  Stories are rendered in array order using CSS multi-column layout.
+  The story.section field is accepted for backwards compatibility but
+  does not control column placement.
+#}
+
+{# ---- Weather icon macro ---- #}
+{% macro weather_icon(icon, width=38, height=38, viewbox="0 0 44 44", stroke_width="1.6") %}
+{% if icon == "sun" %}
+<svg width="{{ width }}" height="{{ height }}" viewBox="{{ viewbox }}" fill="none" stroke="var(--ink)" stroke-width="{{ stroke_width }}"><g class="wx-sun"><circle cx="22" cy="22" r="6"/><line x1="22" y1="2" x2="22" y2="8"/><line x1="22" y1="36" x2="22" y2="42"/><line x1="2" y1="22" x2="8" y2="22"/><line x1="36" y1="22" x2="42" y2="22"/><line x1="8" y1="8" x2="12" y2="12"/><line x1="32" y1="32" x2="36" y2="36"/><line x1="8" y1="36" x2="12" y2="32"/><line x1="32" y1="12" x2="36" y2="8"/></g></svg>
+{% elif icon == "rain" %}
+<svg width="{{ width }}" height="{{ height }}" viewBox="{{ viewbox }}" fill="none" stroke="var(--ink)" stroke-width="{{ stroke_width }}"><g class="wx-cloud"><path d="M12 30h20a6 6 0 0 0 0-12 8 8 0 0 0-15-2 6 6 0 0 0-5 14z" fill="rgba(28,24,19,0.08)"/></g><g class="wx-rain"><line x1="16" y1="33" x2="14" y2="40"/><line x1="22" y1="33" x2="20" y2="40"/><line x1="28" y1="33" x2="26" y2="40"/></g></svg>
+{% elif icon == "snow" %}
+<svg width="{{ width }}" height="{{ height }}" viewBox="{{ viewbox }}" fill="none" stroke="var(--ink)" stroke-width="{{ stroke_width }}"><g class="wx-cloud"><path d="M12 30h20a6 6 0 0 0 0-12 8 8 0 0 0-15-2 6 6 0 0 0-5 14z" fill="rgba(28,24,19,0.08)"/></g><circle cx="16" cy="36" r="1.5" fill="var(--ink)"/><circle cx="22" cy="38" r="1.5" fill="var(--ink)"/><circle cx="28" cy="35" r="1.5" fill="var(--ink)"/></svg>
+{% else %}{# cloud (default) #}
+<svg width="{{ width }}" height="{{ height }}" viewBox="{{ viewbox }}" fill="none" stroke="var(--ink)" stroke-width="{{ stroke_width }}"><g class="wx-cloud"><path d="M12 30h20a6 6 0 0 0 0-12 8 8 0 0 0-15-2 6 6 0 0 0-5 14z" fill="rgba(28,24,19,0.08)"/></g></svg>
+{% endif %}
+{% endmacro %}
+
+{# ---- Story block macro ---- #}
+{% macro story_block(story, first=false) %}
+<div class="story"{% if first %} style="margin:0;padding:0;border:0"{% endif %}>
+  <div class="kicker">{{ story.kicker }}</div>
+  {% if story.url %}<a href="{{ story.url }}" class="story-link">{% endif %}
+  <h2 class="h-{{ story.size }}">{{ story.title }}</h2>
+  {% if story.url %}</a>{% endif %}
+  {% if story.image_url %}
+  <div class="thumb"><img src="{{ story.image_url }}" alt="" class="story-img"></div>
+  {% elif story.has_thumb %}
+  <div class="thumb t-a"><div class="frame cg halftone-fine" style="position:absolute;inset:0;border:0"><div class="cg-layer l cg-kenburns" style="position:absolute;inset:-8%"></div></div></div>
+  {% endif %}
+  {% for para in story.paragraphs %}
+  <p>{{ para }}</p>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenPaper — {{ edition.date }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=Saira+Condensed:wght@500;600;700&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="assets/magic.css" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4efe2; --paper2: #efe8d6; --ink: #1c1813; --ink-soft: #443c31;
+    --red: #8f2417; --line: #2a241c; --soft: rgba(42,36,28,0.28);
+    --serif: "Newsreader", Georgia, serif; --body: "PT Serif", Georgia, serif;
+    --label: "Saira Condensed", sans-serif; --hand: "Caveat", cursive;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { max-width: 1960px; margin: 0 auto; background: var(--paper); color: var(--ink); font-family: var(--body); -webkit-font-smoothing: antialiased; }
+  .page { position: relative; padding: 24px clamp(16px, 3vw, 40px) 34px;
+    background: radial-gradient(120% 70% at 50% 0%, rgba(255,255,255,0.5), transparent 55%), linear-gradient(180deg, var(--paper), var(--paper2)); overflow: hidden; }
+  .label { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.14em; }
+  .rule-d { border-top: 3px double var(--line); } .rule-1 { border-top: 1px solid var(--line); } .rule-2 { border-top: 2px solid var(--line); }
+  .rule-h { border-top: 1px solid rgba(42,36,28,0.32); }
+
+  .folio { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-family: var(--label); text-transform: uppercase; font-size: clamp(9.5px, 1vw, 12px); letter-spacing: 0.16em; color: var(--ink-soft); padding-bottom: 7px; }
+  .masthead { text-align: center; padding: 12px 0 4px; position: relative; }
+  .masthead h1 { font-family: "UnifrakturCook", serif; font-weight: 700; font-size: clamp(46px, 13.5vw, 104px); line-height: 0.88; margin: 0; }
+  .masthead .tag { font-family: var(--serif); font-style: italic; font-size: clamp(12px, 2vw, 15px); color: var(--ink-soft); margin-top: 5px; display: none; }
+  .masthead .flank { position: absolute; top: 30px; font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-soft); width: 220px; line-height: 1.35; }
+  .masthead .flank.l { left: 10px; text-align: left; } .masthead .flank.r { right: 10px; text-align: right; }
+  .dateline { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-family: var(--label); text-transform: uppercase; font-size: clamp(9.5px, 1vw, 12px); letter-spacing: 0.12em; color: var(--ink-soft); padding: 8px 2px; }
+  .dateline b { color: var(--ink); }
+
+  .kicker { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: var(--red); font-weight: 600; }
+  h2 { font-family: var(--serif); font-weight: 600; line-height: 1.02; margin: 4px 0 6px; letter-spacing: -0.005em; }
+  p { font-size: clamp(13px, 1.4vw, 14px); line-height: 1.48; margin: 0 0 7px; text-align: justify; hyphens: auto; }
+  .by { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; color: var(--ink-soft); margin: 5px 0; }
+
+  /* feature */
+  .feature { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(18px, 3vw, 36px); margin-top: 12px; position: relative; }
+  .feature .ftext { padding-right: 6px; }
+  .feature .kx { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.2em; font-size: 13px; color: var(--red); font-weight: 600; }
+  .feature h1.head { font-family: var(--serif); font-weight: 700; font-size: clamp(34px, 8.6vw, 66px); line-height: 0.96; margin: 8px 0 0; letter-spacing: -0.015em; }
+  .feature .deck { font-family: var(--serif); font-style: italic; font-size: clamp(17px, 2.6vw, 21px); line-height: 1.36; color: var(--ink-soft); margin: 14px 0 12px; }
+  .feature .ftext .cols { column-width: 248px; column-gap: 26px; column-rule: 1px solid rgba(42,36,28,0.22); }
+  .feature .ftext .cols p { break-inside: avoid; }
+  .feature .ftext .cols p:first-child::first-letter { font-family: var(--serif); font-weight: 700; float: left; font-size: 58px; line-height: 0.7; padding: 6px 8px 0 0; }
+  .photo .frame { width: 100%; aspect-ratio: 16 / 9.5; border: 1px solid var(--line); box-shadow: inset 0 0 0 4px var(--paper), inset 0 0 0 5px rgba(42,36,28,0.5); position: relative; }
+  .cap { font-family: var(--body); font-style: italic; font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+  .cap b { font-family: var(--label); font-style: normal; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; color: var(--ink); }
+
+  .scene .sky { background: linear-gradient(180deg, #d6d2c8 0%, #b9b4a8 48%, #8f8a7d 100%); }
+  .scene .skyline { position: absolute; left: -8%; right: -8%; bottom: -8%; height: 66%; background: no-repeat bottom/cover;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='760' height='230' preserveAspectRatio='none'%3E%3Cg fill='%23363128'%3E%3Crect x='0' y='120' width='60' height='110'/%3E%3Crect x='66' y='84' width='40' height='146'/%3E%3Crect x='112' y='150' width='52' height='80'/%3E%3Cpolygon points='176,230 176,64 200,48 224,64 224,230'/%3E%3Crect x='236' y='104' width='36' height='126'/%3E%3Crect x='278' y='150' width='60' height='80'/%3E%3Crect x='344' y='44' width='30' height='186'/%3E%3Crect x='380' y='96' width='46' height='134'/%3E%3Cpolygon points='434,230 434,122 560,74 560,230'/%3E%3Crect x='566' y='112' width='36' height='118'/%3E%3Crect x='608' y='150' width='52' height='80'/%3E%3Crect x='666' y='98' width='34' height='132'/%3E%3Crect x='706' y='132' width='48' height='98'/%3E%3C/g%3E%3C/svg%3E"); }
+
+  .annot { position: absolute; font-family: var(--hand); color: var(--red); font-size: 26px; font-weight: 600; line-height: 1.05; transform: rotate(-4deg); z-index: 30; width: 240px; text-align: right; }
+  .annot-inline { display: none; font-family: var(--hand); color: var(--red); font-size: 22px; font-weight: 600; margin: 4px 0 10px; }
+  .thumb.t-a .l, .thumb.t-b .l { background:
+    no-repeat bottom/cover url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='150' preserveAspectRatio='none'%3E%3Crect width='320' height='150' fill='%23b4af9f'/%3E%3Cg fill='%233a352b'%3E%3Crect x='0' y='86' width='40' height='64'/%3E%3Crect x='44' y='60' width='28' height='90'/%3E%3Crect x='76' y='98' width='34' height='52'/%3E%3Cpolygon points='118,150 118,46 134,34 150,46 150,150'/%3E%3Crect x='158' y='72' width='24' height='78'/%3E%3Crect x='186' y='100' width='40' height='50'/%3E%3Crect x='230' y='54' width='22' height='96'/%3E%3Crect x='256' y='88' width='34' height='62'/%3E%3Crect x='294' y='78' width='26' height='72'/%3E%3C/g%3E%3C/svg%3E"); }
+
+  /* main content grid: stories + right rail */
+  .main-grid { display: grid; grid-template-columns: 1fr minmax(200px, 280px); gap: 20px; margin-top: 14px; }
+
+  /* briefs */
+  .colhd { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; text-align: center; border-bottom: 2px solid var(--line); padding-bottom: 5px; margin-bottom: 8px; }
+  .brief { margin: 0; padding: 0; } .brief li { list-style: none; font-size: 11.5px; line-height: 1.34; padding: 5px 0; border-bottom: 1px dotted rgba(42,36,28,0.4); }
+  .brief b { font-family: var(--serif); }
+  .sectlabel { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.16em; font-size: 13px; text-align: center; padding: 6px 0; margin: 6px 0 0; }
+
+  /* story columns */
+  .stories { column-width: 250px; column-gap: 26px; column-rule: 1px solid var(--soft); margin-top: 6px; }
+  .story { break-inside: avoid; }
+  .story + .story { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(42,36,28,0.26); }
+  .h-lg { font-size: 22px; } .h-md { font-size: 19px; } .h-sm { font-size: 15px; }
+  .thumb { width: 100%; aspect-ratio: 16 / 8; border: 1px solid var(--line); position: relative; margin: 5px 0 6px; overflow: hidden; }
+
+  /* right rail */
+  .rail { display: flex; flex-direction: column; gap: 12px; }
+  .box { border: 1px solid var(--line); padding: 11px 12px 13px; background: rgba(255,255,255,0.18); }
+  .box h3 { font-family: var(--label); text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; margin: 0 0 7px; text-align: center; border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+  .wx-row { display: flex; align-items: center; gap: 9px; } .wx-big { font-family: var(--serif); font-size: 34px; font-weight: 700; line-height: 1; }
+  .wx-meta { font-size: 11px; color: var(--ink-soft); line-height: 1.35; }
+  .wx-days { display: flex; justify-content: space-between; margin-top: 8px; text-align: center; } .wx-days div { font-size: 9.5px; color: var(--ink-soft); } .wx-days .t { font-family: var(--serif); font-size: 13px; font-weight: 600; color: var(--ink); margin-top: 2px; }
+  .mkt { margin: 0; padding: 0; } .mkt li { list-style: none; display: flex; justify-content: space-between; font-size: 11.5px; padding: 3px 0; font-family: var(--serif); }
+  .up { color: #1f5e2f; } .down { color: var(--red); }
+  .idx { margin: 0; padding: 0; } .idx li { list-style: none; display: flex; justify-content: space-between; font-size: 11.5px; padding: 3.5px 0; border-bottom: 1px dotted rgba(42,36,28,0.4); } .idx .pg { font-family: var(--label); color: var(--ink-soft); }
+
+  .footrule { display: flex; flex-wrap: wrap; gap: 2px 10px; justify-content: space-between; font-family: var(--label); text-transform: uppercase; letter-spacing: 0.13em; font-size: clamp(9.5px, 1vw, 11px); color: var(--ink-soft); padding-top: 8px; }
+
+  .story-link { color: inherit; text-decoration: none; }
+  .story-link:hover h2 { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  .story-img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%) contrast(1.1); }
+  .lead-img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%) contrast(1.1); }
+
+  /* narrow: stack feature, collapse rail */
+  @media (max-width: 680px) {
+    .feature { grid-template-columns: 1fr; }
+    .feature .photo { order: -1; }
+    .feature .ftext { padding-right: 0; }
+    .masthead .flank { display: none; }
+    .masthead .tag { display: block; }
+    .annot { display: none; }
+    .annot-inline { display: block; }
+    .main-grid { grid-template-columns: 1fr; }
+    .rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="page grain fold" data-screen-label="Broadsheet">
+
+  {# ---- FOLIO BAR ---- #}
+  <div class="folio">
+    <span>Vol. {{ edition.volume }} &middot; No. {{ edition.number }}</span>
+    <span>Curated for One Reader</span>
+    <span>{{ edition.reading_time }} &middot; {{ edition.article_count }} Articles</span>
+  </div>
+  <div class="rule-d"></div>
+
+  {# ---- MASTHEAD ---- #}
+  <div class="masthead">
+    <div class="flank l">&ldquo;{{ edition.tagline }}&rdquo;</div>
+    <h1>OpenPaper</h1>
+    <div class="flank r">A daily edition, composed this morning, for you and no one else.</div>
+    <div class="tag">{{ edition.tagline }}</div>
+  </div>
+  <div class="rule-1"></div>
+  <div class="dateline">
+    <span>{{ edition.location }} &middot; <b>{{ edition.date }}</b></span>
+    <span>{{ edition.weather.description }} &middot; {{ edition.weather.temp }}&deg;C &middot; {{ edition.weather.wind }}</span>
+  </div>
+  <div class="rule-2"></div>
+
+  {# ---- FEATURE / LEAD STORY ---- #}
+  <div class="feature">
+    <div class="ftext">
+      <div class="kx">{{ edition.lead.kicker }}</div>
+      {% if edition.lead.url %}<a href="{{ edition.lead.url }}" class="story-link">{% endif %}
+      <h1 class="head">
+        {%- set title_parts = edition.lead.title.split('\n') if '\n' in edition.lead.title else [edition.lead.title] -%}
+        {%- for part in title_parts -%}
+        <span class="ink-line" style="--d:{{ 0.3 + loop.index0 * 0.6 }}s">{{ part }}</span>
+        {%- endfor -%}
+      </h1>
+      {% if edition.lead.url %}</a>{% endif %}
+      <div class="deck">{{ edition.lead.deck }}</div>
+      <div class="by">{{ edition.lead.byline }}</div>
+      <div class="annot-inline">&darr; {{ edition.lead.annotation }}</div>
+      <div class="cols">
+        {% for para in edition.lead.paragraphs %}
+        <p>{{ para }}</p>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="photo">
+      {% if edition.lead.image_url %}
+      <div class="frame cg halftone">
+        <img src="{{ edition.lead.image_url }}" alt="{{ edition.lead.photo_caption }}" class="lead-img">
+      </div>
+      {% else %}
+      <div class="frame cg halftone scene grain">
+        <div class="cg-layer sky cg-kenburns" style="position:absolute;inset:-8%"></div>
+        <div class="skyline cg-sway"></div>
+        <div class="cg-light"></div>
+      </div>
+      {% endif %}
+      <div class="cap"><b>Above &mdash;</b> {{ edition.lead.photo_caption }}</div>
+      <div class="annot annot draw" style="top:2px; right:22px; --d:1.4s">&darr; {{ edition.lead.annotation }}</div>
+    </div>
+  </div>
+
+  <div class="rule-2" style="margin-top:14px;"></div>
+
+  {# ---- MAIN CONTENT: STORIES + RAIL ---- #}
+  <div class="main-grid">
+
+    {# Stories zone: briefs then all stories #}
+    <div>
+      {% if edition.briefs %}
+      <div class="colhd">The Briefs</div>
+      <ul class="brief">
+        {% for brief in edition.briefs %}
+        <li>{% if brief.url %}<a href="{{ brief.url }}" class="story-link">{% endif %}<b>{{ brief.bold }}</b> {{ brief.text }}{% if brief.url %}</a>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      <div class="rule-2" style="margin-top:14px"></div>
+      <div class="sectlabel">More This Morning</div>
+      <div class="rule-1" style="margin-bottom:10px"></div>
+      {% endif %}
+
+      <div class="stories">
+        {% for story in edition.stories %}
+        {{ story_block(story, first=loop.first) }}
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Right rail: weather, markets, sections index #}
+    <div class="rail">
+      <div class="box">
+        <h3>The Weather</h3>
+        <div class="wx-row">
+          {{ weather_icon(edition.weather.icon) }}
+          <div><div class="wx-big">{{ edition.weather.temp }}&deg;</div></div>
+        </div>
+        <div class="wx-meta" style="margin-top:4px">{{ edition.weather.description }}. Hi {{ edition.weather.high }}&deg; &middot; Lo {{ edition.weather.low }}&deg;. Wind {{ edition.weather.wind }}.</div>
+        <div class="wx-days">
+          {% for day in edition.weather.forecast %}
+          <div>{{ day.day }}<div class="t">{{ day.temp }}&deg;</div></div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="box">
+        <h3>Markets at Dawn</h3>
+        <ul class="mkt">
+          {% for m in edition.markets %}
+          <li><span>{{ m.name }}</span><span class="{{ m.direction }}">{% if m.direction == "up" %}&blacktriangle;{% else %}&blacktriangledown;{% endif %} {{ m.value }}{% if m.currency %} {{ m.currency }}{% endif %} {{ m.change }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="box">
+        <h3>Inside Today</h3>
+        <ul class="idx">
+          {% for sec in edition.sections_index %}
+          <li><span>{{ sec.name }}</span><span class="pg">{{ sec.page }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  {# ---- FOOTER ---- #}
+  <div class="rule-1" style="margin-top:12px"></div>
+  <div class="footrule">
+    <span>OpenPaper &middot; The Morning Edition</span>
+    <span>Word of the Day &mdash; <i style="font-family:var(--serif)">{{ edition.word_of_day.word }}</i>, {{ edition.word_of_day.definition }}</span>
+    <span>Printed Fresh &middot; {{ edition.printed_time }}</span>
+  </div>
+
+</div>
+<script src="assets/magic.js"></script>
+</body>
+</html>

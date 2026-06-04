@@ -1,0 +1,45 @@
+{
+  "includeCoAuthoredBy": false,
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(gh project item-list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m :*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(sort:*)",
+      "Bash(test:*)",
+      "Bash(tree:*)"
+    ],
+    "deny": [
+      "Bash(gh project delete:*)",
+      "Bash(gh project field-delete:*)",
+      "Bash(gh project item-delete:*)",
+      "Read(**.ssh/**)",
+      "Read(*.crt)",
+      "Read(*.csr)",
+      "Read(*.key)",
+      "Read(*.p12)",
+      "Read(*.pem)",
+      "Read(*.pfx)",
+      "Read(.aws/**)",
+      "Read(.devcontainer/devcontainer.env)",
+      "Read(.docker/config.json)",
+      "Read(.env**)",
+      "Read(.gnupg/**)",
+      "Read(.secrets**)",
+      "Read(id_ecdsa*)",
+      "Read(id_ed25519*)",
+      "Read(id_rsa*)",
+      "Read(secrets**)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "enabledPlugins": {}
+}

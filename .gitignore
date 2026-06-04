@@ -1,0 +1,17 @@
+.devcontainer/devcontainer.env
+.transcripts/
+.memories/
+.tmp/
+.openpaper/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# UV
+uv.lock
+
+# Screenshots (only hero.png is tracked)
+.screenshots/screenshot_*
+.screenshots/fullpage*
