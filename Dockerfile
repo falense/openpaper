@@ -1,8 +1,7 @@
 # OpenPaper Docker image
 #
-# Single image for interactive (claude CLI) and automated
-# (claude-agent-sdk) use cases. Includes Playwright/Chromium
-# for news source fetching.
+# COPY-based: the repo is baked into the image for a clean git state.
+# At runtime, mount only auth, cache, output, and optional skill overrides.
 
 FROM python:3.12-slim
 
@@ -10,6 +9,7 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \
       git \
+      gosu \
       # Playwright/Chromium browser dependencies
       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
       libatspi2.0-0 libdbus-1-3 libdrm2 libxcomposite1 \
@@ -26,7 +26,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # --- Install Claude Code CLI ---
 RUN npm install -g @anthropic-ai/claude-code
 
-# --- User setup (match host UID/GID/home so bind mounts work) ---
+# --- User setup (match host UID/GID/home so ~/.claude mount works) ---
 ARG HOST_UID=1000
 ARG HOST_GID=1000
 ARG HOST_USER=sondre
@@ -38,17 +38,16 @@ RUN groupadd -g $HOST_GID $HOST_USER \
 # --- Install UV ---
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# --- Pre-warm UV cache with project + test dependencies ---
+# --- Copy the repo into the image ---
+ENV OPENPAPER_ROOT=$HOST_HOME/Repositories/OpenPaper
+COPY --chown=$HOST_UID:$HOST_GID . $OPENPAPER_ROOT
+
+# --- Pre-warm UV cache with all dependencies ---
 ENV UV_CACHE_DIR=/opt/uv-cache
-RUN uv run \
-    --with "jinja2>=3.1" \
-    --with "httpx>=0.27" \
-    --with "feedparser>=6.0" \
-    --with "playwright>=1.40" \
-    --with "pyyaml>=6.0" \
-    --with "beautifulsoup4>=4.12" \
-    --with "pytest>=8.0" \
-    --with "pytest-asyncio>=0.23" \
+ENV UV_LINK_MODE=copy
+WORKDIR $OPENPAPER_ROOT
+RUN uv sync --frozen 2>/dev/null || true \
+    && uv run \
     --with "claude-agent-sdk==0.1.37" \
     python -c "pass" \
     && chown -R $HOST_UID:$HOST_GID /opt/uv-cache
@@ -58,5 +57,15 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 RUN uv run --with playwright playwright install chromium \
     && chown -R $HOST_UID:$HOST_GID /opt/playwright-browsers
 
-USER $HOST_USER
-WORKDIR $HOST_HOME/Repositories/OpenPaper
+# --- Mount points ---
+# /output          — test artifacts (editions, metrics JSON)
+# /overrides       — optional skill overrides copied in at start
+# .openpaper/cache — persistent cache volume across runs
+RUN mkdir -p /output /overrides .openpaper \
+    && chown -R $HOST_UID:$HOST_GID /output /overrides .openpaper
+
+# --- Entrypoint ---
+COPY --chown=root:root entrypoint.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
+
+ENTRYPOINT ["/opt/entrypoint.sh"]

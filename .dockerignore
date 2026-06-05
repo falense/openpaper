@@ -1,12 +1,10 @@
 .git
 .venv
+.openpaper
 __pycache__
 *.pyc
-.openpaper/cache
-.openpaper/incoming
-.openpaper/saved
-.openpaper/editions
 .screenshots
 .transcripts
 .memories
 .tmp
+output
