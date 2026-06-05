@@ -51,9 +51,9 @@ When `.openpaper/` doesn't exist:
 mkdir -p .openpaper/sources .openpaper/incoming .openpaper/saved .openpaper/editions .openpaper/cache
 ```
 
-### 2. Ask about news sources
+### 2. Add news sources
 
-Ask: "What do you want to read? Give me URLs, RSS feeds, or just topics."
+Say: "What do you want to read? Give me URLs, RSS feeds, or just topics." Then wait for the user's reply.
 
 Deploy the shared base module:
 ```bash
@@ -69,7 +69,7 @@ For each source:
 
 ### 3. Set preferences
 
-Create `.openpaper/preferences.md`. Ask about:
+Create `.openpaper/preferences.md` by chatting with the user about:
 - Topics of interest and how much
 - Articles per edition (default: 14, up to 18)
 - Location (for weather)
