@@ -329,6 +329,16 @@ def semantic_match(art: Article, interests: list[str], cfg: dict) -> dict[str, f
     return {k: max(0.0, min(1.0, float(raw.get(k, 0.0) or 0.0))) for k in interests}
 
 
+def _bad_title(t: str) -> bool:
+    """True if a model-generated headline is empty or just echoes the masthead.
+
+    The reading profile is injected into the summary prompt and mentions the
+    "OpenPaper" masthead; small models sometimes copy it into the title field.
+    """
+    t = (t or "").strip().strip('"').strip()
+    return not t or t.lower() == "openpaper"
+
+
 def summarise(art: Article, style: str, cfg: dict) -> dict:
     cap, spec = ROLE_SPEC[art.role]
     system = (f"Du skriver en avissak i rollen «{art.role}». {spec}\n"
@@ -338,11 +348,13 @@ def summarise(art: Article, style: str, cfg: dict) -> dict:
     j = _generate(cfg, system, prompt, temperature=0.5)
     need_title = art.role != "brief"
     missing = (not j.get("paragraphs") if art.role != "brief" else not j.get("text"))
-    if missing or (need_title and not (j.get("title") or "").strip()):
+    if missing or (need_title and _bad_title(j.get("title"))):
         j = _generate(cfg, system + "\nVIKTIG: ta med ALLE JSON-felt, vær tro mot kilden.",
                       prompt, temperature=0.2)
     if art.role != "brief":
         j["paragraphs"] = [p for p in j.get("paragraphs", []) if p][:cap]
+    if need_title and _bad_title(j.get("title")):
+        j["title"] = art.title          # fall back to the real source headline
     return j
 
 

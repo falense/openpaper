@@ -75,6 +75,10 @@ ollama pull gemma4:e4b
 uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
 ```
 
+This fetches, curates, and renders, then opens the finished edition in your
+browser via the local preview server (just like the Claude flow). Add
+`--no-serve` for headless/cron runs that should render and exit.
+
 See [the local engine guide](skills/openpaper/references/local-engine.md) for
 details, model notes, and limits.
 

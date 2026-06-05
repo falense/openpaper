@@ -51,8 +51,11 @@ per-article questions — which is what keeps a 2–4B model reliable.
    uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
    ```
 
-   `make_paper.py` chains `fetch_all.py` → `curate.py` → `render.py`. Use
-   `--skip-fetch` to re-curate the current `incoming/` without re-fetching.
+   `make_paper.py` chains `fetch_all.py` → `curate.py` → `render.py`, then
+   launches the preview server (`serve.py`) and opens the edition in your
+   browser — the same UX as the Claude flow. It serves until you press Ctrl+C.
+   Use `--skip-fetch` to re-curate the current `incoming/` without re-fetching,
+   and `--no-serve` for headless/cron runs that should just render and exit.
 
 You can also run curation alone:
 

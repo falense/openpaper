@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import os
 import sys
 import webbrowser
@@ -117,7 +118,9 @@ def main() -> None:
             server = HTTPServer(("localhost", port), handler)
             break
         except OSError as e:
-            if e.errno == 98 and attempt < 9:
+            # EADDRINUSE differs by platform (98 on Linux, 48 on macOS) — use the
+            # symbolic value so the port fallback works everywhere.
+            if e.errno == errno.EADDRINUSE and attempt < 9:
                 port += 1
                 continue
             raise

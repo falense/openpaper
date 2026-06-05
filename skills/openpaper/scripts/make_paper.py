@@ -10,6 +10,10 @@ can be produced from a plain shell with a local model and no Claude Code session
 
     uv run make_paper.py --data-dir .openpaper
 
+By default it ends by launching the preview server (serve.py) and opening the
+edition in a browser — the same UX as the Claude flow. Pass --no-serve for
+headless/cron runs that should just render and exit.
+
 If `engine` is not `local` in config.yaml, it points you back to the Claude flow.
 """
 from __future__ import annotations
@@ -42,6 +46,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="OpenPaper agent-free pipeline (engine: local)")
     ap.add_argument("--data-dir", type=Path, default=Path(".openpaper"))
     ap.add_argument("--skip-fetch", action="store_true", help="reuse existing incoming/")
+    ap.add_argument("--no-serve", action="store_true",
+                    help="render only; don't start the preview server or open a browser")
     args = ap.parse_args()
 
     data_dir = args.data_dir
@@ -68,6 +74,21 @@ def main() -> None:
     _run(render_cmd)
 
     print("\n✓ Local edition complete.", file=sys.stderr)
+
+    if args.no_serve:
+        return
+
+    # Mirror the Claude flow: serve the edition and open it in a browser.
+    # serve.py blocks until Ctrl+C, so this is the last thing we do.
+    serve_cmd = ["uv", "run", str(HERE / "serve.py"), "--data-dir", str(data_dir),
+                 "--latest"]
+    local_assets = local_templates / "assets"        # localised template ships its own assets
+    if local_assets.exists():
+        serve_cmd += ["--assets-dir", str(local_assets)]
+    try:
+        _run(serve_cmd)
+    except KeyboardInterrupt:
+        pass  # Ctrl+C reaches both the server and us; let it stop quietly
 
 
 if __name__ == "__main__":

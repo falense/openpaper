@@ -165,3 +165,13 @@ def test_assign_roles_short_read_more_briefs():
     roles = [a.role for a in ranked]
     assert roles.count("lg") == 2                      # <15 min -> fewer majors
     assert roles.count("brief") > 3
+
+
+def test_bad_title_rejects_masthead_echo():
+    # The model sometimes echoes the "OpenPaper" masthead from the reading profile.
+    assert c._bad_title("OpenPaper")
+    assert c._bad_title('  "openpaper" ')
+    assert c._bad_title("")
+    assert c._bad_title(None)
+    # A real headline is fine.
+    assert not c._bad_title("Havvind-drama på Stortinget")
