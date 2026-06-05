@@ -97,6 +97,7 @@ class TurnMetrics:
 
 @dataclass
 class TestMetrics:
+    run_id: str
     agent_model: str
     user_model: str
     started_at: str = ""
@@ -111,9 +112,12 @@ class TestMetrics:
     turns: list[dict] = field(default_factory=list)
 
 
+_RUN_ID = "test"
+
+
 def log(msg: str, verbose: bool = True) -> None:
     if verbose:
-        print(f"[test] {msg}", flush=True)
+        print(f"[{_RUN_ID}] {msg}", flush=True)
 
 
 def write_transcript(path: Path, turn: int, role: str, text: str, tools: list[str]) -> None:
@@ -238,6 +242,7 @@ def export_artifacts(metrics: TestMetrics) -> None:
 
 
 async def run_test(
+    run_id: str,
     agent_model: str,
     user_model: str,
     max_turns: int,
@@ -246,6 +251,7 @@ async def run_test(
     """Run the dual-agent test. Returns metrics."""
 
     metrics = TestMetrics(
+        run_id=run_id,
         agent_model=agent_model,
         user_model=user_model,
         started_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -368,6 +374,11 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
+        "--run-id",
+        default="default",
+        help="Identifier for this test run (used in log prefix and metrics)",
+    )
+    parser.add_argument(
         "--agent-model",
         default=DEFAULT_AGENT_MODEL,
         help=f"Model for the agent under test (default: {DEFAULT_AGENT_MODEL})",
@@ -390,8 +401,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    global _RUN_ID
+    _RUN_ID = args.run_id
+
     metrics = asyncio.run(
         run_test(
+            run_id=args.run_id,
             agent_model=args.agent_model,
             user_model=args.user_model,
             max_turns=args.max_turns,
