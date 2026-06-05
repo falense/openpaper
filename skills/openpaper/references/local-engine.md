@@ -77,12 +77,14 @@ Ollama publishes `-it` only as fully-qualified tags (`…-q4_K_M`, `…-qat`,
   q4_K_M (same quant as, and byte-identical to, the old `gemma4:e4b` tag).
   Faithful summaries, fluent bokmål, ~4 min for a 14-article edition on an
   M-series Mac. Fastest *and* most reliable option in the benchmark.
-- **`gemma4:12b-it-q4_K_M` — not recommended (benchmarked worse).** In
-  `.openpaper/bench/REPORT.md` the larger model was both ~1.8× slower (~7.5 min)
-  *and* less reliable at this quant: empty story bodies (including the lead),
-  occasional title corruption, and untranslated/garbled text. Bigger is not
-  better here. If you want to chase 12B-class prose, try a higher-precision
-  build first — `gemma4:12b-it-q8_0` or `gemma4:12b-it-qat` — and benchmark it.
+- **12B — not recommended (benchmarked worse, both quants).** In
+  `.openpaper/bench/REPORT.md`, `gemma4:12b-it-q4_K_M` was ~1.8× slower (~7.5 min)
+  *and* unreliable (empty story bodies incl. the lead, title corruption,
+  untranslated text). `gemma4:12b-it-q8_0` was far worse: memory-bound on a 48 GB
+  Mac at 32k context (~2.4 tok/s, heavy swap), ~12× slower, and a runaway
+  generation forced an abort. Bigger is not better here — e4b-it wins on speed
+  and reliability. (`gemma4:12b-it-qat` at a smaller context is the only 12B
+  option left untested.)
 - **Base (non-`-it`) and `gemma4:e2b` — not recommended.** Base models ignore
   the instructions; e2b is too weak to summarise.
 - Any other Ollama model works via `model:`; larger `-it` models reduce the
