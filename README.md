@@ -49,7 +49,15 @@ Your data lives in `.openpaper/` inside your project:
 
 ## Install
 
-Clone this repo and start Claude Code inside it:
+Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [uv](https://docs.astral.sh/uv/). Playwright's Chromium must be installed once:
+
+```bash
+uv run playwright install chromium
+```
+
+### Standalone (own project)
+
+Clone the repo and start Claude Code inside it:
 
 ```bash
 git clone https://github.com/falense/openpaper.git
@@ -57,11 +65,15 @@ cd openpaper
 claude
 ```
 
-Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [uv](https://docs.astral.sh/uv/) (for running fetcher scripts). Playwright's Chromium must be installed once:
+### Plugin (inside another project)
+
+Install OpenPaper as a Claude Code plugin to use it from within any project:
 
 ```bash
-uv run playwright install chromium
+claude plugin add https://github.com/falense/openpaper.git
 ```
+
+The `/openpaper` skill and all commands will be available in your project. Your data (sources, editions, preferences) lives in `.openpaper/` inside your working directory — not inside the plugin.
 
 ## Usage
 

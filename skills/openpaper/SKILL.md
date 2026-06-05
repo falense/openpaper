@@ -19,6 +19,17 @@ OpenPaper is a three-stage pipeline: **Ingest** (fetch news), **Curate** (select
 | "Show my preferences" | Display and edit the user's preference profile |
 | "Give me feedback on today's paper" | Start the feedback loop |
 
+## Usage Modes
+
+OpenPaper works in two modes. The commands throughout this skill use `${CLAUDE_PLUGIN_ROOT}` — **substitute `.` if the variable is not set** (i.e., standalone mode).
+
+| Mode | When | `${CLAUDE_PLUGIN_ROOT}` | How to run scripts |
+|------|------|------------------------|--------------------|
+| **Standalone** | Cloned repo, working directory is the repo root | Not set — use `.` instead | `uv run --project . skills/openpaper/scripts/<script>.py` |
+| **Plugin** | Installed as a Claude Code plugin into another project | Set by the plugin system | `uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/<script>.py` |
+
+**Detection:** If `${CLAUDE_PLUGIN_ROOT}` is set, you're in plugin mode. Otherwise, you're in standalone mode and the current working directory is the project root — use `.` wherever this skill references `${CLAUDE_PLUGIN_ROOT}`.
+
 ## Data Directory
 
 All user state lives in `.openpaper/` relative to the working directory:
@@ -343,7 +354,7 @@ All scripts use PEP 723 inline dependencies and run via `uv run`:
 | `render.py` | Generate HTML from edition YAML | `--data-dir`, `--edition`, `--output` |
 | `serve.py` | Preview server for editions | `--data-dir`, `--port`, `--latest` |
 
-Always use `--project ${CLAUDE_PLUGIN_ROOT}` when running scripts to keep the working directory correct:
+Always use `--project` when running scripts so `uv` can resolve dependencies from `pyproject.toml`. Use `${CLAUDE_PLUGIN_ROOT}` in plugin mode or `.` in standalone mode (see **Usage Modes** above):
 
 ```bash
 uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/<script>.py <args>
