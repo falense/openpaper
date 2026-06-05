@@ -34,7 +34,7 @@ DEFAULT_NAMES = "Oslo Børs,USD/NOK,S&P 500,Gold,Bitcoin,Brent"
 CURRENCY_LIKE = {"USDNOK=X"}
 
 # Symbols whose prices are typically large (>100) — show with thousands separator, no decimals
-LARGE_VALUE = {"^OSEAX", "^GSPC", "GC=F", "BTC-USD"}
+LARGE_VALUE = {"^OSEAX", "^OBX", "^GSPC", "GC=F", "BTC-USD"}
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +70,19 @@ def format_change(change_pct: float) -> tuple[str, str]:
     else:
         # Use proper minus sign (U+2212) for typography
         return f"−{abs(change_pct):.1f}%", "down"
+
+
+def market_state_label(raw_state: str) -> str:
+    """Map Yahoo Finance marketState to a simplified label.
+
+    Yahoo returns: REGULAR, PRE, PREPRE, POST, POSTPOST, CLOSED.
+    """
+    raw = raw_state.upper()
+    if raw == "REGULAR":
+        return "open"
+    if raw in ("PRE", "PREPRE"):
+        return "pre"
+    return "closed"
 
 
 # ---------------------------------------------------------------------------
@@ -169,15 +182,22 @@ def parse_symbol(data: dict, symbol: str, display_name: str) -> dict | None:
         print(f"Warning: no price data for {symbol}", file=sys.stderr)
         return None
 
+    raw_state = meta.get("marketState", "REGULAR")
+    state = market_state_label(raw_state)
+
     # Calculate change
     if prev_close and prev_close != 0:
         change_pct = ((price - prev_close) / prev_close) * 100
     else:
         change_pct = 0.0
 
-    change_str, direction = format_change(change_pct)
-    value_str = format_value(price, symbol)
+    if state == "pre":
+        change_str = "(prev close)"
+        direction = "stale"
+    else:
+        change_str, direction = format_change(change_pct)
 
+    value_str = format_value(price, symbol)
     currency = meta.get("currency", "")
 
     return {
@@ -185,6 +205,7 @@ def parse_symbol(data: dict, symbol: str, display_name: str) -> dict | None:
         "value": value_str,
         "change": change_str,
         "direction": direction,
+        "market_state": state,
         "currency": currency,
     }
 
