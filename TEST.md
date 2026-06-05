@@ -137,6 +137,60 @@ The image bakes in the repo via `COPY` for a clean git state. At runtime, only a
 
 The entrypoint (`entrypoint.sh`) fixes volume ownership, applies overrides via `cp -r /overrides/* .`, then drops to the host user with `gosu`.
 
+## Running an Optimization Loop
+
+Use the test harness to iteratively improve skill files through ablation. The loop:
+
+1. **Establish a baseline** — run with unmodified skill files
+2. **Create variants** — copy and modify files under `overrides/<variant>/`
+3. **Test in parallel** — run up to 3 variants simultaneously
+4. **Compare** — pick the best, apply changes to the repo, commit
+5. **Repeat** — use the committed state as the new baseline
+
+### Example: testing a SKILL.md change
+
+```bash
+# 1. Run baseline
+scripts/run_test.sh baseline --verbose &
+
+# 2. Create a variant
+mkdir -p overrides/v2-trim/skills/openpaper
+cp skills/openpaper/SKILL.md overrides/v2-trim/skills/openpaper/SKILL.md
+# edit the copy...
+
+# 3. Test the variant
+scripts/run_test.sh v2-trim --verbose &
+wait
+
+# 4. Compare
+uv run scripts/compare_runs.py
+```
+
+### What to optimize for
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| `total_tool_errors` | 0 | Failed tool calls waste tokens and time |
+| `total_duration_s` | Lower | Faster = cheaper |
+| `total_tool_calls` | Lower (with same output quality) | Fewer calls = less exploration overhead |
+| `verification_passed` | `true` | Must still produce a working paper |
+
+Always visually inspect the generated HTML — metrics can pass while the paper looks wrong.
+
+### What worked (from the initial optimization)
+
+- **Trimming redundant content** (2320 → 663 lines, -71%): removed full example fetchers already encoded in `_base.py`, duplicate YAML examples, verbose walkthroughs
+- **Rephrasing "Ask:" to "Say:"**: the word "Ask" triggers AskUserQuestion tool calls which fail in the test harness. Use "Say:" with explicit text instead.
+- **Removing "confirm" / "ask for feedback"**: same trigger — use neutral phrasing like "Show the user" or `Say: "Here's your paper"`.
+
+### What didn't work
+
+- **Merging reference files**: combining `curation-guide.md` + `edition-schema.md` into one file made things worse — the agent expects the file structure described in SKILL.md.
+
+### Noise and variance
+
+Single runs have significant variance (0–4 errors on identical prompts). When evaluating small changes, run the same variant 2–3 times or only trust large deltas (e.g., 9 → 3 errors is real signal; 3 → 1 is noise).
+
 ## Scripts
 
 | Script | Purpose |
