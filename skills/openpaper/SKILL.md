@@ -139,7 +139,10 @@ This discovers all `.py` files in `.openpaper/sources/` (excluding `_base.py`), 
 
 This is where you act as editor-in-chief. Read `references/curation-guide.md` for the full curation process.
 
-1. **Read the incoming articles** — scan `.openpaper/incoming/` for new articles
+1. **Inspect the article pool** — use the pool CLI to understand what's available:
+   - `uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/pool.py --data-dir .openpaper stats` — source counts and totals
+   - `uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/pool.py --data-dir .openpaper list --sort points` — ranked candidate list
+   - `uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/pool.py --data-dir .openpaper show <slug>` — read full content of specific articles
 2. **Read user preferences** — read `.openpaper/preferences.md`
 3. **Score and rank** — evaluate each article against the user's interests
 4. **Select** — choose the right number of articles (typically 10-18)
