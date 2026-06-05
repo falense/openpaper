@@ -293,8 +293,6 @@ def build_weather_svg(icon: str) -> str:
 def render_edition(edition: dict, templates_dir: Path) -> str:
     """Render the edition to HTML using the appropriate Jinja2 template."""
     template_name = edition.get("template", "broadsheet")
-    if template_name == "folio":
-        template_name = "broadsheet"
     template_file = f"{template_name}.html.j2"
 
     env = Environment(
