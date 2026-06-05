@@ -8,12 +8,9 @@
 """Discover and run all OpenPaper news source fetchers.
 
 Walks .openpaper/sources/, runs each fetcher in listing-only mode,
-deduplicates articles against seen.txt, fetches content only for new
-articles using a shared Playwright browser, and writes results to
-.openpaper/incoming/.
-
-Architecture aligned with TriOnyx newsagg: single centralized dedup,
-content fetching after filtering, shared browser session.
+deduplicates articles against seen.txt, then fetches content with one
+browser per source in parallel. Within each source articles are fetched
+sequentially to avoid hammering a single site.
 """
 
 from __future__ import annotations
@@ -135,14 +132,14 @@ def extract_text(html: str) -> str | None:
     article = soup.find("article") or soup.find("main")
     if article:
         text = article.get_text(separator="\n", strip=True)
-        if len(text) >= 100:
+        if len(text) >= 300:
             return text
 
     blocks = soup.find_all(["div", "section"])
     if blocks:
         best = max(blocks, key=lambda b: len(b.get_text(strip=True)))
         text = best.get_text(separator="\n", strip=True)
-        if len(text) >= 100:
+        if len(text) >= 300:
             return text
 
     return None
@@ -297,15 +294,16 @@ def run_fetcher(
 # ---------------------------------------------------------------------------
 
 
-def fetch_content_batch(
+def _fetch_content_for_source(
     articles: list[dict],
     cache_dir: Path,
+    source_name: str,
     throttle: float = FETCH_DELAY,
 ) -> None:
-    """Fetch article content for new articles, modifying them in-place.
+    """Fetch content for one source's articles using its own browser.
 
-    Checks HTML cache first, then launches a shared Playwright browser
-    only for uncached articles (like TriOnyx's fetch_articles_batch).
+    Articles are fetched sequentially within the source to avoid
+    hammering a single site.
     """
     needs_browser: list[dict] = []
 
@@ -314,8 +312,7 @@ def fetch_content_batch(
             continue
 
         url = article["url"]
-        source = article.get("source", "unknown")
-        source_cache = cache_dir / source
+        source_cache = cache_dir / source_name
         source_cache.mkdir(parents=True, exist_ok=True)
         html_path = source_cache / f"{cache_key(url)}.html"
 
@@ -338,13 +335,12 @@ def fetch_content_batch(
         total = len(needs_browser)
         for i, article in enumerate(needs_browser):
             url = article["url"]
-            source = article.get("source", "unknown")
             title = article.get("title", url)[:60]
             print(
-                f"  [{i + 1}/{total}] [{source}] {title}",
+                f"  [{source_name}] [{i + 1}/{total}] {title}",
                 file=sys.stderr,
             )
-            source_cache = cache_dir / source
+            source_cache = cache_dir / source_name
             source_cache.mkdir(parents=True, exist_ok=True)
 
             try:
@@ -360,14 +356,52 @@ def fetch_content_batch(
                     article["image_url"] = extract_image(html)
             except Exception as exc:
                 print(
-                    f"[{source}] Content fetch failed: {url}: {exc}",
+                    f"  [{source_name}] Content fetch failed: {url}: {exc}",
                     file=sys.stderr,
                 )
 
-            if i < len(needs_browser) - 1:
+            if i < total - 1:
                 time.sleep(throttle)
 
         browser.close()
+
+
+def fetch_content_batch(
+    articles: list[dict],
+    cache_dir: Path,
+    throttle: float = FETCH_DELAY,
+    parallel: int = 4,
+) -> None:
+    """Fetch article content with one thread per source.
+
+    Each source gets its own Playwright browser and fetches its articles
+    sequentially. Multiple sources run in parallel so a slow source
+    doesn't block fast ones.
+    """
+    by_source: dict[str, list[dict]] = {}
+    for article in articles:
+        source = article.get("source", "unknown")
+        by_source.setdefault(source, []).append(article)
+
+    workers = min(parallel, len(by_source))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(
+                _fetch_content_for_source, source_articles,
+                cache_dir, source_name, throttle,
+            ): source_name
+            for source_name, source_articles in by_source.items()
+        }
+
+        for future in as_completed(futures):
+            source_name = futures[future]
+            try:
+                future.result()
+            except Exception as exc:
+                print(
+                    f"[{source_name}] Content fetch error: {exc}",
+                    file=sys.stderr,
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -484,28 +518,36 @@ def fetch_all(
         file=sys.stderr,
     )
 
-    # --- Phase 3: Fetch content for new articles (shared browser) ---
-    fetch_content_batch(new_articles, cache_dir)
+    # --- Phase 3: Fetch content per source (one browser per source) ---
+    fetch_content_batch(new_articles, cache_dir, parallel=parallel)
 
     # --- Phase 4: Write articles to incoming/ and update seen.txt ---
     written = 0
     all_urls = [a["url"] for a in new_articles]
+    source_stats: dict[str, dict[str, int]] = {}
 
     for article in new_articles:
         url = article["url"]
         source = article.get("source", "unknown")
         title = article.get("title", url)
+        stats = source_stats.setdefault(
+            source, {"found": 0, "written": 0, "paywalled": 0, "nocontent": 0},
+        )
+        stats["found"] += 1
 
         if article.pop("_paywalled", False):
+            stats["paywalled"] += 1
             print(f"[{source}] Skipping (paywalled): {title}", file=sys.stderr)
             continue
 
         if not article.get("content"):
+            stats["nocontent"] += 1
             print(f"[{source}] Skipping (no content): {title}", file=sys.stderr)
             continue
 
         path = write_article(article, incoming_dir)
         if path:
+            stats["written"] += 1
             written += 1
 
     append_seen(seen_path, all_urls)
@@ -516,6 +558,32 @@ def fetch_all(
         f"{written} new article(s), {total_errors} error(s).",
         file=sys.stderr,
     )
+
+    # --- Actionable signal: tell the agent which fetchers need fixing ---
+    broken = {
+        src: s for src, s in source_stats.items() if s["nocontent"] > 0
+    }
+    if broken:
+        print(
+            "\n⚠️  FETCHER FIX NEEDED — the following sources returned "
+            "articles with no extractable content:\n",
+            file=sys.stderr,
+        )
+        for src, s in sorted(broken.items()):
+            print(
+                f"  [{src}] {s['nocontent']} of {s['found']} articles had "
+                f"no content — likely a paywall or content extraction issue.\n"
+                f"    Fix the fetcher at: .openpaper/sources/{src}.py\n"
+                f"    Cached HTML for debugging: .openpaper/cache/{src}/\n"
+                f"    Guide: skills/openpaper/references/fetcher-guide.md\n",
+                file=sys.stderr,
+            )
+        print(
+            "ACTION: Inspect the cached HTML files to understand why content "
+            "extraction failed,\nthen update the fetcher or paywall detection "
+            "to handle this source correctly.",
+            file=sys.stderr,
+        )
 
 
 # ---------------------------------------------------------------------------

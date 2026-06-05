@@ -124,6 +124,8 @@ This discovers all `.py` files in `.openpaper/sources/` (excluding `_base.py`), 
 
 ### Stage 2: Curate
 
+> **Gate:** Stage 2 begins only after Stage 1 has fully completed and weather/markets data has been collected. Do not curate until the full candidate pool is available — curation quality depends on seeing every article from every source before making editorial decisions.
+
 This is where you act as editor-in-chief. Read `references/curation-guide.md` for the full curation process.
 
 1. **Read the incoming articles** — scan `.openpaper/incoming/` for new articles

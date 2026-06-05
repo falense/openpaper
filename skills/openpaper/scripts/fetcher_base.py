@@ -93,14 +93,14 @@ def extract_text(html: str) -> str | None:
     article = soup.find("article") or soup.find("main")
     if article:
         text = article.get_text(separator="\n", strip=True)
-        if len(text) >= 100:
+        if len(text) >= 300:
             return text
 
     blocks = soup.find_all(["div", "section"])
     if blocks:
         best = max(blocks, key=lambda b: len(b.get_text(strip=True)))
         text = best.get_text(separator="\n", strip=True)
-        if len(text) >= 100:
+        if len(text) >= 300:
             return text
 
     return None
