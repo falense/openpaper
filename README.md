@@ -47,6 +47,37 @@ Your data lives in `.openpaper/` inside your project:
 └── seen.txt           # centralized dedup log (URLs)
 ```
 
+## Curation engine: Claude or local
+
+By default, OpenPaper curates with Claude — the agent acts as editor-in-chief.
+You can instead opt into a **fully local, agent-free engine** that runs the whole
+pipeline with a small local model via [Ollama](https://ollama.com) — private,
+offline, free, and independent of a Claude Code session. The tradeoff is some
+editorial polish.
+
+The local engine is deliberately hybrid: all editorial *arithmetic* (interest
+weights, the topic/source/serendipity caps, role assignment) stays deterministic
+Python that mirrors the curation guide and is unit-tested; the model only does
+per-article semantic matching and the summaries. That split is what lets a 4B
+model produce a coherent paper.
+
+Enable it in `.openpaper/config.yaml`:
+
+```yaml
+engine: local        # default: claude
+model: gemma4:e4b    # gemma4:e4b recommended; e2b is too weak
+```
+
+Then make a paper from a plain shell:
+
+```bash
+ollama pull gemma4:e4b
+uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
+```
+
+See [the local engine guide](skills/openpaper/references/local-engine.md) for
+details, model notes, and limits.
+
 ## Install
 
 Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [uv](https://docs.astral.sh/uv/). Playwright's Chromium must be installed once:

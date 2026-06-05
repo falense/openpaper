@@ -121,6 +121,19 @@ Run the full pipeline once to show the user their first paper. Open it in the br
 
 ## Making a Paper
 
+> **Curation engine.** By default OpenPaper curates with Claude (you, the agent —
+> the flow below). Users can opt into a fully-local, agent-free engine by setting
+> `engine: local` in `.openpaper/config.yaml`. In that mode, do **not** curate
+> manually — run the standalone pipeline and stop:
+>
+> ```bash
+> uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/make_paper.py --data-dir .openpaper
+> ```
+>
+> It chains fetch → curate (local model via Ollama) → render. See
+> `references/local-engine.md`. With no config, or `engine: claude`, use the
+> flow below.
+
 The full pipeline runs in three stages:
 
 ### Stage 1: Ingest
