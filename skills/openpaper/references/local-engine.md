@@ -34,7 +34,7 @@ per-article questions — which is what keeps a 2–4B model reliable.
 
    ```bash
    ollama serve &
-   ollama pull gemma4:e4b
+   ollama pull gemma4:e4b-it-q4_K_M
    ```
 
 2. Set the engine in `.openpaper/config.yaml` (see
@@ -42,7 +42,7 @@ per-article questions — which is what keeps a 2–4B model reliable.
 
    ```yaml
    engine: local
-   model: gemma4:e4b
+   model: gemma4:e4b-it-q4_K_M
    ```
 
 3. Make a paper without Claude:
@@ -65,12 +65,35 @@ uv run skills/openpaper/scripts/curate.py --data-dir .openpaper --output .openpa
 
 ## Model choice
 
-- **`gemma4:e4b` — recommended.** Faithful summaries, fluent prose, ~12 s per
-  article (a 14-article edition ≈ 3 min on an M-series Mac).
-- **`gemma4:e2b` — not recommended.** Too weak: it tends to translate whole
-  articles verbatim instead of summarising.
-- Any other Ollama model works via `model:`; larger local models reduce the
+**Use an instruction-tuned (`-it`) model.** The base Gemma checkpoints
+(`gemma4:e4b`, `gemma4:e2b`, no `-it` suffix) ship with a raw completion
+template and do not follow the JSON-output and summarisation instructions — they
+tend to translate or continue the article verbatim instead. The `-it` variants
+are what make the per-article matching and role-calibrated summaries reliable.
+Ollama publishes `-it` only as fully-qualified tags (`…-q4_K_M`, `…-qat`,
+`…-q8_0`, `…-bf16`) — there is no bare `:e4b-it` alias.
+
+- **`gemma4:e4b-it-q4_K_M` — recommended default.** Instruction-tuned 8B at
+  q4_K_M (same quant as, and byte-identical to, the old `gemma4:e4b` tag).
+  Faithful summaries, fluent bokmål, ~4 min for a 14-article edition on an
+  M-series Mac. Fastest *and* most reliable option in the benchmark.
+- **`gemma4:12b-it-q4_K_M` — not recommended (benchmarked worse).** In
+  `.openpaper/bench/REPORT.md` the larger model was both ~1.8× slower (~7.5 min)
+  *and* less reliable at this quant: empty story bodies (including the lead),
+  occasional title corruption, and untranslated/garbled text. Bigger is not
+  better here. If you want to chase 12B-class prose, try a higher-precision
+  build first — `gemma4:12b-it-q8_0` or `gemma4:12b-it-qat` — and benchmark it.
+- **Base (non-`-it`) and `gemma4:e2b` — not recommended.** Base models ignore
+  the instructions; e2b is too weak to summarise.
+- Any other Ollama model works via `model:`; larger `-it` models reduce the
   language slips below.
+
+Benchmark the options yourself against your own corpus:
+
+```bash
+uv run skills/openpaper/scripts/bench.py --data-dir .openpaper \
+  --models gemma4:e4b-it-q4_K_M gemma4:12b-it-q4_K_M
+```
 
 ## Known limits (vs. the Claude engine)
 
@@ -89,4 +112,6 @@ uv run skills/openpaper/scripts/curate.py --data-dir .openpaper --output .openpa
 - `scripts/curate.py` — config + preference parsing, deterministic scoring,
   model layer, edition assembly.
 - `scripts/make_paper.py` — agent-free fetch → curate → render orchestrator.
+- `scripts/bench.py` — times the curation pipeline across models (per-phase
+  wall-clock), writes editions to `.openpaper/bench/` for quality comparison.
 - `tests/test_curate.py` — unit tests for the deterministic parts.

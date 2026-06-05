@@ -9,7 +9,7 @@
 engine: claude
 
 # --- Settings used only when engine: local ---
-model: gemma4:e4b               # any Ollama model; gemma4:e4b recommended, e2b too weak
+model: gemma4:e4b-it-q4_K_M     # any Ollama model; must be instruction-tuned (-it). Base gemma4:e4b ignores instructions; e2b too weak
 ollama_url: http://localhost:11434
 
 # --- Edition metadata (used by both engines' standalone rendering) ---

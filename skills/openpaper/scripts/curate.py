@@ -41,7 +41,7 @@ FETCHERS = HERE.parent / "fetchers"
 
 DEFAULT_CONFIG = {
     "engine": "claude",
-    "model": "gemma4:e4b",
+    "model": "gemma4:e4b-it-q4_K_M",   # instruction-tuned; the base gemma4:e4b ignores the JSON/summary instructions
     "ollama_url": "http://localhost:11434",
     "location": "Oslo, Norway",
     "tagline": "All the news that fits the day you are about to have.",
