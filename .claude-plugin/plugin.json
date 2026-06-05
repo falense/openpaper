@@ -1,6 +1,6 @@
 {
   "name": "openpaper",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A pipeline for agents to parse any news source and deliver a curated newspaper-style digest",
   "author": {
     "name": "Sondre Engebråten"
