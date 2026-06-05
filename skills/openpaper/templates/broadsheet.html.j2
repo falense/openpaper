@@ -40,6 +40,11 @@
     edition.tagline           -- "All the news that fits the day you are about to have."
     edition.word_of_day       -- {"word": "Petrichor", "definition": "the scent of first rain"}
     edition.printed_time      -- "06:14 CET"
+    edition.locale            -- "en" (default) | "nb" | ... — sets <html lang> and the
+                                 bundled UI label translation chosen by render.py
+    edition.ui                -- fixed UI labels (weather, markets, briefs, ...). render.py
+                                 fills these from DEFAULT_LABELS + the locale bundle; a
+                                 per-edition `ui:` block in the YAML overrides individual keys
 
   Stories are rendered in array order using CSS multi-column layout.
   The story.section field is accepted for backwards compatibility but
@@ -78,7 +83,7 @@
 {% endmacro %}
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ edition.locale | default('en') }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -193,8 +198,8 @@
   {# ---- FOLIO BAR ---- #}
   <div class="folio">
     <span>Vol. {{ edition.volume }} &middot; No. {{ edition.number }}</span>
-    <span>Curated for One Reader</span>
-    <span>{{ edition.reading_time }} &middot; {{ edition.article_count }} Articles</span>
+    <span>{{ edition.ui.folio_tagline }}</span>
+    <span>{{ edition.reading_time }} &middot; {{ edition.article_count }} {{ edition.ui.articles }}</span>
   </div>
   <div class="rule-d"></div>
 
@@ -202,7 +207,7 @@
   <div class="masthead">
     <div class="flank l">&ldquo;{{ edition.tagline }}&rdquo;</div>
     <h1>OpenPaper</h1>
-    <div class="flank r">A daily edition, composed this morning, for you and no one else.</div>
+    <div class="flank r">{{ edition.ui.masthead_note }}</div>
     <div class="tag">{{ edition.tagline }}</div>
   </div>
   <div class="rule-1"></div>
@@ -245,7 +250,7 @@
         <div class="cg-light"></div>
       </div>
       {% endif %}
-      <div class="cap"><b>Above &mdash;</b> {{ edition.lead.photo_caption }}</div>
+      <div class="cap"><b>{{ edition.ui.caption_above }} &mdash;</b> {{ edition.lead.photo_caption }}</div>
       <div class="annot annot draw" style="top:2px; right:22px; --d:1.4s">&darr; {{ edition.lead.annotation }}</div>
     </div>
   </div>
@@ -258,14 +263,14 @@
     {# Stories zone: briefs then all stories #}
     <div>
       {% if edition.briefs %}
-      <div class="colhd">The Briefs</div>
+      <div class="colhd">{{ edition.ui.briefs }}</div>
       <ul class="brief">
         {% for brief in edition.briefs %}
         <li>{% if brief.url %}<a href="{{ brief.url }}" class="story-link">{% endif %}<b>{{ brief.bold }}</b> {{ brief.text }}{% if brief.url %}</a>{% endif %}</li>
         {% endfor %}
       </ul>
       <div class="rule-2" style="margin-top:14px"></div>
-      <div class="sectlabel">More This Morning</div>
+      <div class="sectlabel">{{ edition.ui.more }}</div>
       <div class="rule-1" style="margin-bottom:10px"></div>
       {% endif %}
 
@@ -279,12 +284,12 @@
     {# Right rail: weather, markets, sections index #}
     <div class="rail">
       <div class="box">
-        <h3>The Weather</h3>
+        <h3>{{ edition.ui.weather }}</h3>
         <div class="wx-row">
           {{ weather_icon(edition.weather.icon) }}
           <div><div class="wx-big">{{ edition.weather.temp }}&deg;</div></div>
         </div>
-        <div class="wx-meta" style="margin-top:4px">{{ edition.weather.description }}. Hi {{ edition.weather.high }}&deg; &middot; Lo {{ edition.weather.low }}&deg;. Wind {{ edition.weather.wind }}.</div>
+        <div class="wx-meta" style="margin-top:4px">{{ edition.weather.description }}. {{ edition.ui.hi }} {{ edition.weather.high }}&deg; &middot; {{ edition.ui.lo }} {{ edition.weather.low }}&deg;. {{ edition.ui.wind_label }} {{ edition.weather.wind }}.</div>
         <div class="wx-days">
           {% for day in edition.weather.forecast %}
           <div>{{ day.day }}<div class="t">{{ day.temp }}&deg;</div></div>
@@ -292,7 +297,7 @@
         </div>
       </div>
       <div class="box">
-        <h3>Markets at Dawn</h3>
+        <h3>{{ edition.ui.markets }}</h3>
         <ul class="mkt">
           {% for m in edition.markets %}
           <li><span>{{ m.name }}</span><span class="{{ m.direction }}">{% if m.direction == "up" %}&blacktriangle;{% elif m.direction == "down" %}&blacktriangledown;{% endif %} {{ m.value }}{% if m.currency %} {{ m.currency }}{% endif %} {{ m.change }}</span></li>
@@ -300,7 +305,7 @@
         </ul>
       </div>
       <div class="box">
-        <h3>Inside Today</h3>
+        <h3>{{ edition.ui.inside }}</h3>
         <ul class="idx">
           {% for sec in edition.sections_index %}
           <li><span>{{ sec.name }}</span><span class="pg">{{ sec.page }}</span></li>
@@ -314,9 +319,9 @@
   {# ---- FOOTER ---- #}
   <div class="rule-1" style="margin-top:12px"></div>
   <div class="footrule">
-    <span>OpenPaper &middot; The Morning Edition</span>
-    <span>Word of the Day &mdash; <i style="font-family:var(--serif)">{{ edition.word_of_day.word }}</i>, {{ edition.word_of_day.definition }}</span>
-    <span>Printed Fresh &middot; {{ edition.printed_time }}</span>
+    <span>OpenPaper &middot; {{ edition.ui.morning_edition }}</span>
+    <span>{{ edition.ui.word_of_day }} &mdash; <i style="font-family:var(--serif)">{{ edition.word_of_day.word }}</i>, {{ edition.word_of_day.definition }}</span>
+    <span>{{ edition.ui.printed }} &middot; {{ edition.printed_time }}</span>
   </div>
 
 </div>
