@@ -5,8 +5,8 @@ TARGET_UID="${HOST_UID:-1000}"
 TARGET_GID="${HOST_GID:-1000}"
 TARGET_USER="${HOST_USER:-sondre}"
 
-# Fix ownership on mounted directories
-for dir in .openpaper /output; do
+# Fix ownership on mounted directories (volumes start as root)
+for dir in .openpaper .openpaper/cache /output; do
     if [ -d "$dir" ]; then
         chown "$TARGET_UID:$TARGET_GID" "$dir"
     fi
