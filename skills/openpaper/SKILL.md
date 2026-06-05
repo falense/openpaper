@@ -65,7 +65,7 @@ For each source:
 2. **Write a fetcher** — create `.openpaper/sources/<name>.py`. Read `references/fetcher-guide.md` for the interface spec and `_base.py` templates.
 3. **Test** — `uv run .openpaper/sources/<name>.py --cache-dir /tmp/openpaper-test-<name>`
    > **Cache trap:** Always test with `/tmp/`, NOT `.openpaper/cache/`. Using the real cache pollutes `seen.txt` dedup.
-4. **Confirm** — show the user what it found
+4. **Show** the user what it found
 
 ### 3. Set preferences
 
@@ -154,7 +154,7 @@ Then preview:
 uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/serve.py --data-dir .openpaper --latest
 ```
 
-Open in browser and ask for feedback.
+Open in browser. Say: "Here's your paper — let me know what you think."
 
 ## Adding a Source
 
@@ -163,7 +163,7 @@ Open in browser and ask for feedback.
 3. Read `references/fetcher-guide.md` for the contract and `_base.py` templates
 4. Write `.openpaper/sources/<name>.py`
 5. Test with `/tmp/` cache dir (not the real one)
-6. Show results and confirm
+6. Show results to the user
 
 **Key rules:**
 - RSS/API first, Playwright for everything else — never use httpx for web pages
