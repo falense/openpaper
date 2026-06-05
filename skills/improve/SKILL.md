@@ -32,10 +32,9 @@ into issues (they may want one issue, several, or all of them).
 Every issue must trace back to its origin so future readers understand the context.
 Collect these details:
 
-1. **Session ID** — run `echo $CLAUDE_SESSION_ID` to get the current session identifier
-2. **Working directory** — the repo/project the session was working in
-3. **Date** — today's date
-4. **Trigger** — what specifically surfaced this (e.g., "reflection after refactoring the fetcher pipeline" or "user noticed flaky test during PR review")
+1. **Working directory** — the repo/project the session was working in
+2. **Date** — today's date
+3. **Trigger** — what specifically surfaced this (e.g., "reflection after refactoring the fetcher pipeline" or "user noticed flaky test during PR review")
 
 ## Step 3: Structure the issue
 
@@ -57,7 +56,6 @@ Concrete next steps. What should change and roughly how.
 
 ## Origin
 
-- **Session:** `<session-id>`
 - **Date:** <date>
 - **Working directory:** `<path>`
 - **Trigger:** <what surfaced this>
