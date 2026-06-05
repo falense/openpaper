@@ -144,7 +144,8 @@ This is where you act as editor-in-chief. Read `references/curation-guide.md` fo
 3. **Score and rank** — evaluate each article against the user's interests
 4. **Select** — choose the right number of articles (typically 10-18)
 5. **Assign editorial weight** — decide which story leads, which are medium features, which are briefs
-6. **Compose the edition** — write an edition YAML file that maps articles to layout slots
+6. **Summarize in parallel** — spawn one subagent per selected article to write its summary (see below)
+7. **Assemble the edition** — collect subagent results and compose the edition YAML
 
 The edition YAML structure:
 
@@ -216,6 +217,31 @@ word_of_day:
   word: Petrichor
   definition: "the scent of first rain"
 ```
+
+#### Parallel article summarization
+
+After selecting articles and assigning editorial weight (steps 1–5), **do not write summaries yourself**. Instead, spawn one subagent per selected article using `parallel()`:
+
+```
+parallel([
+  () => agent("Summarize this lead article: <article JSON>. Write 3-4 paragraphs..."),
+  () => agent("Summarize this lg article: <article JSON>. Write 2 paragraphs..."),
+  () => agent("Summarize this md article: <article JSON>. Write 1 paragraph..."),
+  () => agent("Write a brief for: <article JSON>. Return bold + one sentence..."),
+  ...
+])
+```
+
+Each subagent receives the **full article content** and its **assigned role** (lead/lg/md/brief). The subagent writes a front-page-ready summary calibrated to that role:
+
+| Role      | Output |
+|-----------|--------|
+| **Lead**  | 3–4 paragraphs, drop-cap opening, narrative arc. Plus `deck` and `photo_caption`. |
+| **lg**    | 2 paragraphs — key facts + one quote or detail. Optional `deck`. |
+| **md**    | 1 tight paragraph — who, what, why it matters. |
+| **Brief** | `bold` (source/topic keyword) + `text` (one sentence, max 15 words). |
+
+After all subagents complete, collect their results and assemble the edition YAML. See `references/curation-guide.md` Step 5 for the full specification.
 
 Write this YAML to a temporary file (e.g., `.openpaper/editions/draft.yaml`).
 

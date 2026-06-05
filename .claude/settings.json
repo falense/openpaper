@@ -15,7 +15,9 @@
       "Bash(mkdir:*)",
       "Bash(sort:*)",
       "Bash(test:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(gh issue *)",
+      "Bash(uv run *)"
     ],
     "deny": [
       "Bash(gh project delete:*)",

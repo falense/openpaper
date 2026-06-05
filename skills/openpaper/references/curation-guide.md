@@ -131,7 +131,61 @@ Rules for assignment:
 - If `reading_time_minutes` is low (under 15), shift the balance toward more briefs and fewer majors.
 - If `reading_time_minutes` is high (over 25), include more full-text majors and fewer briefs.
 
-### Step 5: Fill the template slots
+### Step 5: Write article summaries in parallel
+
+A single agent writing all summaries in sequence tends to produce inconsistent density — either dumping full article content or compressing too aggressively. Instead, spawn **one subagent per selected article** so each gets dedicated attention.
+
+#### Input to each subagent
+
+Each subagent receives:
+
+1. **Full article JSON** — title, content, source, url, author, image_url
+2. **Assigned role** — `lead`, `lg`, `md`, or `brief`
+3. **User context** — the relevant interest from `preferences.md` that matched this article (for the annotation)
+
+#### Summary guidelines by role
+
+| Role      | Paragraphs | Style |
+| --------- | ---------- | ----- |
+| **Lead**  | 3–4        | Drop-cap opening sentence. Narrative arc: scene-setting → key development → implications → what's next. Include a `deck` (subtitle) and `photo_caption`. |
+| **lg**    | 2          | Key facts in the first paragraph, one quote or telling detail in the second. Include a `deck` if the headline needs context. |
+| **md**    | 1          | Tight summary — who, what, why, and why it matters to the reader. No deck. |
+| **Brief** | 0          | No paragraphs. Return `bold` (source or topic keyword) and `text` (one sentence, max 15 words). |
+
+#### Structured output per subagent
+
+Each subagent returns a JSON object matching its role:
+
+**Lead / lg / md:**
+```json
+{
+  "paragraphs": ["...", "..."],
+  "deck": "optional subtitle",
+  "kicker": "Topic · Subtopic",
+  "photo_caption": "only for lead"
+}
+```
+
+**Brief:**
+```json
+{
+  "bold": "Source or topic",
+  "text": "one sentence summary."
+}
+```
+
+#### Execution
+
+Use `parallel()` to run all subagents concurrently. The parent agent does **not** write summaries — it only:
+
+1. Prepares the inputs (article JSON + role + interest context)
+2. Spawns the subagents
+3. Collects results
+4. Assembles the edition YAML (Step 6)
+
+If a subagent fails or returns malformed output, the parent drops that article and pulls in the next-highest-scoring candidate from the pool.
+
+### Step 6: Fill the template slots
 
 Map the selected articles into the template's layout grid. The slot assignment depends on the template:
 
@@ -437,13 +491,11 @@ Here is a concrete example of the curation process from start to finish.
    - Mid: 4 articles covering AI, open source, urban planning, local news
    - Brief: 6 articles rounding out remaining topics
 
-7. **Map to template slots.** Lead goes to the hero position. Majors fill the three column slots below. Mids and briefs fill the lower grid.
+7. **Summarize in parallel.** Spawn 14 subagents — one per selected article. Each gets the full article JSON and its role. The lead subagent writes 3–4 paragraphs with a deck and photo caption. Major subagents write 2 paragraphs each. Mid subagents write 1 paragraph each. Brief subagents return a bold keyword and one sentence. All run concurrently via `parallel()`.
 
-8. **Write annotations.** Each article gets a one-line reason.
+8. **Collect and assemble.** Gather subagent results. Write annotations (one-line reason per article). Map articles into template slots — lead to the hero position, majors to the column slots below, mids and briefs to the lower grid. Emit the edition YAML.
 
-9. **Emit the edition YAML.** The rendering step takes it from here.
-
-10. **Archive and clean up.** Move selected articles to `saved/` and clear `incoming/`. See the Archiving section below.
+9. **Archive and clean up.** Move selected articles to `saved/` and clear `incoming/`. See the Archiving section below.
 
 ---
 
