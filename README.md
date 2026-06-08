@@ -47,42 +47,15 @@ Your data lives in `.openpaper/` inside your project:
 └── seen.txt           # centralized dedup log (URLs)
 ```
 
-## Curation engine: Claude or local
+## Run fully local (no Claude)
 
-By default, OpenPaper curates with Claude — the agent acts as editor-in-chief.
-You can instead opt into a **fully local, agent-free engine** that runs the whole
-pipeline with a small local model via [Ollama](https://ollama.com) — private,
-offline, free, and independent of a Claude Code session. The tradeoff is some
-editorial polish.
-
-The local engine is deliberately hybrid: all editorial *arithmetic* (interest
-weights, the topic/source/serendipity caps, role assignment) stays deterministic
-Python that mirrors the curation guide and is unit-tested; the model only does
-per-article semantic matching and the summaries. That split is what lets a 4B
-model produce a coherent paper.
-
-Run it from a plain shell — no Claude session, and no manual setup:
+Prefer offline and agent-free? Install [Ollama](https://ollama.com), then run one command:
 
 ```bash
-ollama pull gemma4:e4b-it-q4_K_M
 uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
 ```
 
-On a fresh clone there is no `.openpaper/` yet, so the first run **bootstraps
-itself**: it creates the data directory, a `config.yaml` with `engine: local`, a
-starter `preferences.md`, and a couple of default news fetchers (Hacker News and
-BBC). Then it fetches, curates, and renders, and opens the finished edition in
-your browser via the local preview server (just like the Claude flow). Add
-`--no-serve` for headless/cron runs that should render and exit.
-
-To make it *yours* — sources for the sites you actually read, your own interests
-and feedback — either edit `.openpaper/config.yaml` and `preferences.md` by hand,
-or run the `/openpaper` skill once and let Claude write fetchers tailored to you.
-The local engine then takes over the daily runs. Use an instruction-tuned
-(`-it`) model; the base `gemma4:e4b` ignores the JSON/summary instructions.
-
-See [the local engine guide](skills/openpaper/references/local-engine.md) for
-details, model notes, and limits.
+It bootstraps everything on first run and curates with a local model instead of Claude. See the [local engine guide](skills/openpaper/references/local-engine.md) for how it works, model notes, and limits.
 
 ## Install
 

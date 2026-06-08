@@ -45,14 +45,10 @@ Claude there, while keeping the deterministic selection, is what
 
 ## Enable it
 
-1. Install [Ollama](https://ollama.com) and pull a model:
+1. Install [Ollama](https://ollama.com). That's the only prerequisite — you
+   don't need to start the server or pull a model by hand; step 2 does it.
 
-   ```bash
-   ollama serve &
-   ollama pull gemma4:e4b-it-q4_K_M
-   ```
-
-2. Make a paper without Claude:
+2. Make a paper with one command, no Claude:
 
    ```bash
    uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
@@ -64,14 +60,17 @@ Claude there, while keeping the deterministic selection, is what
    Use `--skip-fetch` to re-curate the current `incoming/` without re-fetching,
    and `--no-serve` for headless/cron runs that should just render and exit.
 
-   **First run bootstraps the scaffolding.** On a fresh clone `.openpaper/`
-   doesn't exist yet, so `make_paper.py` creates it: the data directory, a
-   `config.yaml` with `engine: local` (see
-   [`config.example.yaml`](config.example.yaml) for every option), a starter
-   `preferences.md`, and the shipped default news fetchers
-   (`skills/openpaper/fetchers/news/` → `.openpaper/sources/`). It's idempotent
-   and never overwrites files you've edited. If a `config.yaml` already exists
-   with `engine: claude`, it defers to the Claude flow instead.
+   **First run bootstraps everything.** On a fresh clone `.openpaper/` doesn't
+   exist yet, so `make_paper.py` creates it: the data directory, a `config.yaml`
+   with `engine: local` (see [`config.example.yaml`](config.example.yaml) for
+   every option), a starter `preferences.md`, and the shipped default news
+   fetchers (`skills/openpaper/fetchers/news/` → `.openpaper/sources/`). It also
+   brings up the runtime prerequisites: it installs Playwright's Chromium (for
+   fetching) and, if the Ollama server isn't already running, starts it and
+   pulls the configured model (for curation). The scaffolding step is idempotent
+   and never overwrites files you've edited; `--skip-setup` skips the
+   prerequisite checks. If a `config.yaml` already exists with `engine: claude`,
+   it defers to the Claude flow instead.
 
 3. Make it yours. The starter setup gets a paper on screen immediately, but the
    sources and interests are generic. To tailor them, edit

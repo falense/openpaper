@@ -16,7 +16,10 @@ headless/cron runs that should just render and exit.
 
 On a fresh clone it self-bootstraps: it creates the `.openpaper/` scaffolding
 (config.yaml with engine: local, a starter preferences.md, and a couple of
-default news fetchers) so it runs with no prior Claude session. Run the
+default news fetchers) AND brings up the prerequisites the pipeline needs —
+Playwright's Chromium (for fetching), and an Ollama server with the configured
+model pulled (for curation). So a single command works on a fresh machine with
+no manual setup. Pass --skip-setup to skip the prerequisite checks. Run the
 /openpaper skill once to tailor sources and preferences to you.
 
 If a `config.yaml` already exists with `engine` != `local`, it points you back
@@ -25,15 +28,20 @@ to the Claude flow rather than overriding your choice.
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
+import time
+import urllib.request
 from pathlib import Path
 
 import yaml
 
 HERE = Path(__file__).resolve().parent
 STARTER_SOURCES = HERE.parent / "fetchers" / "news"   # shipped default news fetchers
+DEFAULT_OLLAMA_URL = "http://localhost:11434"
+DEFAULT_MODEL = "gemma4:e4b-it-q4_K_M"
 
 DEFAULT_CONFIG = """\
 # OpenPaper local engine — created by make_paper.py on first run.
@@ -73,7 +81,7 @@ def _config(data_dir: Path) -> dict:
     return cfg
 
 
-def _bootstrap(data_dir: Path) -> None:
+def _bootstrap(data_dir: Path) -> bool:
     """Make the local engine runnable on a fresh clone, with no Claude session.
 
     Idempotent — only fills in what's missing, never overwrites the user's files.
@@ -82,12 +90,16 @@ def _bootstrap(data_dir: Path) -> None:
     `sources/`. To tailor sources and preferences to you, run the /openpaper
     skill once (Claude writes fetchers for the sites you actually read) or edit
     these files by hand.
+
+    Returns True on a first run (when it had to create config.yaml), so the
+    caller can do the heavier one-time setup (Playwright) only when needed.
     """
     for sub in ("sources", "incoming", "editions", "cache", "saved"):
         (data_dir / sub).mkdir(parents=True, exist_ok=True)
 
     config_path = data_dir / "config.yaml"
-    if not config_path.exists():
+    fresh = not config_path.exists()
+    if fresh:
         config_path.write_text(DEFAULT_CONFIG)
         print(f"• created {config_path} (engine: local)", file=sys.stderr)
 
@@ -109,6 +121,82 @@ def _bootstrap(data_dir: Path) -> None:
                   file=sys.stderr)
             print("  → run the /openpaper skill to add sources tailored to you.",
                   file=sys.stderr)
+    return fresh
+
+
+# --------------------------------------------------------------------------- #
+# Prerequisites — so the one command works on a fresh machine, no manual setup
+# --------------------------------------------------------------------------- #
+def _ollama_reachable(url: str) -> bool:
+    try:
+        with urllib.request.urlopen(url + "/api/version", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def _ollama_models(url: str) -> set[str]:
+    try:
+        with urllib.request.urlopen(url + "/api/tags", timeout=5) as r:
+            data = json.load(r)
+        return {m.get("name", "") for m in data.get("models", [])}
+    except Exception:
+        return set()
+
+
+def _ensure_ollama(cfg: dict) -> None:
+    """Make sure an Ollama server is reachable, starting one if we can."""
+    url = cfg.get("ollama_url") or DEFAULT_OLLAMA_URL
+    if _ollama_reachable(url):
+        return
+    if shutil.which("ollama"):
+        print("• Ollama not running — starting `ollama serve`…", file=sys.stderr)
+        try:
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except Exception as exc:
+            sys.exit(f"Could not start Ollama: {exc}\nStart it manually: `ollama serve`")
+        for _ in range(20):                       # wait up to ~10s for readiness
+            time.sleep(0.5)
+            if _ollama_reachable(url):
+                break
+    if not _ollama_reachable(url):
+        sys.exit(
+            f"Cannot reach Ollama at {url}.\n"
+            "Install it from https://ollama.com and run `ollama serve`, "
+            "then re-run this command."
+        )
+
+
+def _ensure_model(cfg: dict) -> None:
+    """Pull the configured model if it isn't present yet."""
+    if not shutil.which("ollama"):
+        return                                    # remote Ollama: can't pull from here
+    model = cfg.get("model") or DEFAULT_MODEL
+    url = cfg.get("ollama_url") or DEFAULT_OLLAMA_URL
+    have = _ollama_models(url)
+    if model in have:
+        return
+    print(f"• Pulling model {model} (first run — this can take a while)…",
+          file=sys.stderr)
+    subprocess.run(["ollama", "pull", model], check=True)
+
+
+def _ensure_playwright() -> None:
+    """Install Playwright's Chromium (used by fetch_all) if it's missing."""
+    print("• Ensuring Playwright Chromium is installed…", file=sys.stderr)
+    try:
+        subprocess.run(
+            ["uv", "run", "--with", "playwright", "playwright", "install", "chromium"],
+            check=True, cwd=HERE.parents[2],
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        print(f"  (could not auto-install Chromium: {exc} — "
+              "run `uv run playwright install chromium` if fetching fails)",
+              file=sys.stderr)
 
 
 def _run(cmd: list[str]) -> None:
@@ -122,6 +210,9 @@ def main() -> None:
     ap.add_argument("--skip-fetch", action="store_true", help="reuse existing incoming/")
     ap.add_argument("--no-serve", action="store_true",
                     help="render only; don't start the preview server or open a browser")
+    ap.add_argument("--skip-setup", action="store_true",
+                    help="skip prerequisite checks (Ollama, model pull, Playwright); "
+                         "assume everything is already installed")
     args = ap.parse_args()
 
     data_dir = args.data_dir
@@ -137,7 +228,17 @@ def main() -> None:
             f"{config_path}."
         )
 
-    _bootstrap(data_dir)
+    fresh = _bootstrap(data_dir)
+    cfg = _config(data_dir)
+
+    # Make the single command self-sufficient: bring up the prerequisites the
+    # pipeline needs (Chromium for fetch on first run; Ollama + the model for
+    # curate every run) before doing the slow work, so it fails fast if not.
+    if not args.skip_setup:
+        if fresh and not args.skip_fetch:
+            _ensure_playwright()
+        _ensure_ollama(cfg)
+        _ensure_model(cfg)
 
     edition = data_dir / "editions" / "draft.yaml"
     if not args.skip_fetch:
