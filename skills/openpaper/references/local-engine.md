@@ -52,15 +52,7 @@ Claude there, while keeping the deterministic selection, is what
    ollama pull gemma4:e4b-it-q4_K_M
    ```
 
-2. Set the engine in `.openpaper/config.yaml` (see
-   [`config.example.yaml`](config.example.yaml)):
-
-   ```yaml
-   engine: local
-   model: gemma4:e4b-it-q4_K_M
-   ```
-
-3. Make a paper without Claude:
+2. Make a paper without Claude:
 
    ```bash
    uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
@@ -71,6 +63,22 @@ Claude there, while keeping the deterministic selection, is what
    browser — the same UX as the Claude flow. It serves until you press Ctrl+C.
    Use `--skip-fetch` to re-curate the current `incoming/` without re-fetching,
    and `--no-serve` for headless/cron runs that should just render and exit.
+
+   **First run bootstraps the scaffolding.** On a fresh clone `.openpaper/`
+   doesn't exist yet, so `make_paper.py` creates it: the data directory, a
+   `config.yaml` with `engine: local` (see
+   [`config.example.yaml`](config.example.yaml) for every option), a starter
+   `preferences.md`, and the shipped default news fetchers
+   (`skills/openpaper/fetchers/news/` → `.openpaper/sources/`). It's idempotent
+   and never overwrites files you've edited. If a `config.yaml` already exists
+   with `engine: claude`, it defers to the Claude flow instead.
+
+3. Make it yours. The starter setup gets a paper on screen immediately, but the
+   sources and interests are generic. To tailor them, edit
+   `.openpaper/config.yaml` and `preferences.md` by hand, or run the `/openpaper`
+   skill once — Claude writes fetchers for the exact sites you read and builds a
+   preference profile with you. After that, the local engine handles the daily
+   runs on its own.
 
 You can also run curation alone:
 

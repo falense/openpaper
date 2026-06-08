@@ -14,11 +14,18 @@ By default it ends by launching the preview server (serve.py) and opening the
 edition in a browser — the same UX as the Claude flow. Pass --no-serve for
 headless/cron runs that should just render and exit.
 
-If `engine` is not `local` in config.yaml, it points you back to the Claude flow.
+On a fresh clone it self-bootstraps: it creates the `.openpaper/` scaffolding
+(config.yaml with engine: local, a starter preferences.md, and a couple of
+default news fetchers) so it runs with no prior Claude session. Run the
+/openpaper skill once to tailor sources and preferences to you.
+
+If a `config.yaml` already exists with `engine` != `local`, it points you back
+to the Claude flow rather than overriding your choice.
 """
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +33,35 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
+STARTER_SOURCES = HERE.parent / "fetchers" / "news"   # shipped default news fetchers
+
+DEFAULT_CONFIG = """\
+# OpenPaper local engine — created by make_paper.py on first run.
+# Edit freely; see skills/openpaper/references/config.example.yaml for all options.
+engine: local
+model: gemma4:e4b-it-q4_K_M     # any Ollama model; must be instruction-tuned (-it)
+ollama_url: http://localhost:11434
+location: "Oslo, Norway"
+tagline: "All the news that fits the day you are about to have."
+"""
+
+DEFAULT_PREFERENCES = """\
+# My Reading Preferences
+
+## Interests
+- Technology and AI (very interested)
+- World news (interested)
+- Science (some interest)
+
+## Sources
+- Hacker News
+- BBC News
+
+## Reading Profile
+~14 articles, about 20 min. Written in Norwegian bokmål. Include weather for Oslo.
+
+## Feedback
+"""
 
 
 def _config(data_dir: Path) -> dict:
@@ -35,6 +71,44 @@ def _config(data_dir: Path) -> dict:
     if isinstance(cfg.get("local"), dict):
         cfg = {**cfg, **cfg["local"]}
     return cfg
+
+
+def _bootstrap(data_dir: Path) -> None:
+    """Make the local engine runnable on a fresh clone, with no Claude session.
+
+    Idempotent — only fills in what's missing, never overwrites the user's files.
+    Creates the data dirs, a `config.yaml` (engine: local), a starter
+    `preferences.md`, and copies the shipped default news fetchers into
+    `sources/`. To tailor sources and preferences to you, run the /openpaper
+    skill once (Claude writes fetchers for the sites you actually read) or edit
+    these files by hand.
+    """
+    for sub in ("sources", "incoming", "editions", "cache", "saved"):
+        (data_dir / sub).mkdir(parents=True, exist_ok=True)
+
+    config_path = data_dir / "config.yaml"
+    if not config_path.exists():
+        config_path.write_text(DEFAULT_CONFIG)
+        print(f"• created {config_path} (engine: local)", file=sys.stderr)
+
+    prefs_path = data_dir / "preferences.md"
+    if not prefs_path.exists():
+        prefs_path.write_text(DEFAULT_PREFERENCES)
+        print(f"• created {prefs_path} (starter interests — edit to taste)",
+              file=sys.stderr)
+
+    sources_dir = data_dir / "sources"
+    existing = [p for p in sources_dir.glob("*.py") if not p.name.startswith("_")]
+    if not existing and STARTER_SOURCES.is_dir():
+        copied = []
+        for fetcher in sorted(STARTER_SOURCES.glob("*.py")):
+            shutil.copy2(fetcher, sources_dir / fetcher.name)
+            copied.append(fetcher.stem)
+        if copied:
+            print(f"• installed starter news sources: {', '.join(copied)}",
+                  file=sys.stderr)
+            print("  → run the /openpaper skill to add sources tailored to you.",
+                  file=sys.stderr)
 
 
 def _run(cmd: list[str]) -> None:
@@ -51,14 +125,19 @@ def main() -> None:
     args = ap.parse_args()
 
     data_dir = args.data_dir
-    cfg = _config(data_dir)
-    if cfg.get("engine") != "local":
+
+    # An existing config that opts into Claude wins — don't override the choice.
+    # With no config yet, running this script *is* the opt-in to the local engine.
+    config_path = data_dir / "config.yaml"
+    if config_path.exists() and _config(data_dir).get("engine") != "local":
         sys.exit(
             "config.yaml has engine != 'local'. The default Claude flow is driven "
             "by the agent — just run the /openpaper skill and say \"make my paper\".\n"
             "To use the local model instead, set `engine: local` in "
-            f"{data_dir}/config.yaml."
+            f"{config_path}."
         )
+
+    _bootstrap(data_dir)
 
     edition = data_dir / "editions" / "draft.yaml"
     if not args.skip_fetch:

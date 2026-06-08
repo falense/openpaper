@@ -61,23 +61,25 @@ Python that mirrors the curation guide and is unit-tested; the model only does
 per-article semantic matching and the summaries. That split is what lets a 4B
 model produce a coherent paper.
 
-Enable it in `.openpaper/config.yaml`:
-
-```yaml
-engine: local        # default: claude
-model: gemma4:e4b    # gemma4:e4b recommended; e2b is too weak
-```
-
-Then make a paper from a plain shell:
+Run it from a plain shell — no Claude session, and no manual setup:
 
 ```bash
-ollama pull gemma4:e4b
+ollama pull gemma4:e4b-it-q4_K_M
 uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
 ```
 
-This fetches, curates, and renders, then opens the finished edition in your
-browser via the local preview server (just like the Claude flow). Add
+On a fresh clone there is no `.openpaper/` yet, so the first run **bootstraps
+itself**: it creates the data directory, a `config.yaml` with `engine: local`, a
+starter `preferences.md`, and a couple of default news fetchers (Hacker News and
+BBC). Then it fetches, curates, and renders, and opens the finished edition in
+your browser via the local preview server (just like the Claude flow). Add
 `--no-serve` for headless/cron runs that should render and exit.
+
+To make it *yours* — sources for the sites you actually read, your own interests
+and feedback — either edit `.openpaper/config.yaml` and `preferences.md` by hand,
+or run the `/openpaper` skill once and let Claude write fetchers tailored to you.
+The local engine then takes over the daily runs. Use an instruction-tuned
+(`-it`) model; the base `gemma4:e4b` ignores the JSON/summary instructions.
 
 See [the local engine guide](skills/openpaper/references/local-engine.md) for
 details, model notes, and limits.

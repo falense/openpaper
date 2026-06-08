@@ -214,6 +214,9 @@ def deploy_base_module(sources_dir: Path) -> None:
     canonical = Path(__file__).resolve().parent / "fetcher_base.py"
     target = sources_dir / "_base.py"
     if canonical.exists():
+        # mkdir first: on a fresh install sources/ may not exist yet, and
+        # shutil.copy2 would otherwise raise FileNotFoundError on the target dir.
+        sources_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(canonical, target)
 
 
