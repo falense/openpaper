@@ -144,31 +144,49 @@ def _ollama_models(url: str) -> set[str]:
         return set()
 
 
-def _ensure_ollama(cfg: dict) -> None:
-    """Make sure an Ollama server is reachable, starting one if we can."""
+def _ensure_ollama(cfg: dict) -> subprocess.Popen | None:
+    """Make sure an Ollama server is reachable, starting one if we can.
+
+    Returns the server process if we had to start one (so the caller can stop it
+    again on exit and leave the machine as it found it), or None if a server was
+    already running — in which case we never touch it.
+    """
     url = cfg.get("ollama_url") or DEFAULT_OLLAMA_URL
     if _ollama_reachable(url):
-        return
-    if shutil.which("ollama"):
-        print("• Ollama not running — starting `ollama serve`…", file=sys.stderr)
-        try:
-            subprocess.Popen(
-                ["ollama", "serve"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        except Exception as exc:
-            sys.exit(f"Could not start Ollama: {exc}\nStart it manually: `ollama serve`")
-        for _ in range(20):                       # wait up to ~10s for readiness
-            time.sleep(0.5)
-            if _ollama_reachable(url):
-                break
-    if not _ollama_reachable(url):
+        return None
+    if not shutil.which("ollama"):
         sys.exit(
             f"Cannot reach Ollama at {url}.\n"
             "Install it from https://ollama.com and run `ollama serve`, "
             "then re-run this command."
         )
+    print("• Ollama not running — starting `ollama serve`…", file=sys.stderr)
+    try:
+        proc = subprocess.Popen(
+            ["ollama", "serve"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as exc:
+        sys.exit(f"Could not start Ollama: {exc}\nStart it manually: `ollama serve`")
+    for _ in range(20):                       # wait up to ~10s for readiness
+        time.sleep(0.5)
+        if _ollama_reachable(url):
+            return proc
+    _stop_server(proc)                        # came up wrong — don't leave it behind
+    sys.exit(f"Started Ollama but it never became reachable at {url}.")
+
+
+def _stop_server(proc: subprocess.Popen | None) -> None:
+    """Stop an Ollama server we started ourselves (no-op for an external one)."""
+    if proc is None or proc.poll() is not None:
+        return
+    print("• Stopping the Ollama server we started…", file=sys.stderr)
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 def _ensure_model(cfg: dict) -> None:
@@ -234,41 +252,49 @@ def main() -> None:
     # Make the single command self-sufficient: bring up the prerequisites the
     # pipeline needs (Chromium for fetch on first run; Ollama + the model for
     # curate every run) before doing the slow work, so it fails fast if not.
+    # _ensure_ollama hands back a server handle only if it had to start one; we
+    # stop exactly that one on the way out (see finally), never a pre-existing one.
+    server_proc = None
     if not args.skip_setup:
         if fresh and not args.skip_fetch:
             _ensure_playwright()
-        _ensure_ollama(cfg)
+        server_proc = _ensure_ollama(cfg)
         _ensure_model(cfg)
 
-    edition = data_dir / "editions" / "draft.yaml"
-    if not args.skip_fetch:
-        _run(["uv", "run", str(HERE / "fetch_all.py"), "--data-dir", str(data_dir)])
-    _run(["uv", "run", str(HERE / "curate.py"), "--data-dir", str(data_dir),
-          "--output", str(edition)])
-
-    render_cmd = ["uv", "run", str(HERE / "render.py"), "--data-dir", str(data_dir),
-                  "--edition", str(edition)]
-    local_templates = data_dir / "templates"        # supports a localised template copy
-    if local_templates.exists():
-        render_cmd += ["--templates-dir", str(local_templates)]
-    _run(render_cmd)
-
-    print("\n✓ Local edition complete.", file=sys.stderr)
-
-    if args.no_serve:
-        return
-
-    # Mirror the Claude flow: serve the edition and open it in a browser.
-    # serve.py blocks until Ctrl+C, so this is the last thing we do.
-    serve_cmd = ["uv", "run", str(HERE / "serve.py"), "--data-dir", str(data_dir),
-                 "--latest"]
-    local_assets = local_templates / "assets"        # localised template ships its own assets
-    if local_assets.exists():
-        serve_cmd += ["--assets-dir", str(local_assets)]
     try:
-        _run(serve_cmd)
-    except KeyboardInterrupt:
-        pass  # Ctrl+C reaches both the server and us; let it stop quietly
+        edition = data_dir / "editions" / "draft.yaml"
+        if not args.skip_fetch:
+            _run(["uv", "run", str(HERE / "fetch_all.py"), "--data-dir", str(data_dir)])
+        _run(["uv", "run", str(HERE / "curate.py"), "--data-dir", str(data_dir),
+              "--output", str(edition)])
+
+        render_cmd = ["uv", "run", str(HERE / "render.py"), "--data-dir", str(data_dir),
+                      "--edition", str(edition)]
+        local_templates = data_dir / "templates"        # supports a localised template copy
+        if local_templates.exists():
+            render_cmd += ["--templates-dir", str(local_templates)]
+        _run(render_cmd)
+
+        print("\n✓ Local edition complete.", file=sys.stderr)
+
+        if args.no_serve:
+            return
+
+        # Mirror the Claude flow: serve the edition and open it in a browser.
+        # serve.py blocks until Ctrl+C, so this is the last thing we do.
+        serve_cmd = ["uv", "run", str(HERE / "serve.py"), "--data-dir", str(data_dir),
+                     "--latest"]
+        local_assets = local_templates / "assets"    # localised template ships its own assets
+        if local_assets.exists():
+            serve_cmd += ["--assets-dir", str(local_assets)]
+        try:
+            _run(serve_cmd)
+        except KeyboardInterrupt:
+            pass  # Ctrl+C reaches both the server and us; let it stop quietly
+    finally:
+        # Leave the machine as we found it: stop the Ollama server only if this
+        # run started it. A pre-existing server (server_proc is None) is untouched.
+        _stop_server(server_proc)
 
 
 if __name__ == "__main__":

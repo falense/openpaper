@@ -67,7 +67,10 @@ Claude there, while keeping the deterministic selection, is what
    fetchers (`skills/openpaper/fetchers/news/` → `.openpaper/sources/`). It also
    brings up the runtime prerequisites: it installs Playwright's Chromium (for
    fetching) and, if the Ollama server isn't already running, starts it and
-   pulls the configured model (for curation). The scaffolding step is idempotent
+   pulls the configured model (for curation). A server it started itself is
+   stopped again when the run finishes; one that was already running is left
+   untouched, and the model unloads on Ollama's own idle timeout either way. The
+   scaffolding step is idempotent
    and never overwrites files you've edited; `--skip-setup` skips the
    prerequisite checks. If a `config.yaml` already exists with `engine: claude`,
    it defers to the Claude flow instead.
