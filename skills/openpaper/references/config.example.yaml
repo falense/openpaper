@@ -1,0 +1,37 @@
+# OpenPaper configuration — copy to .openpaper/config.yaml
+#
+# .openpaper/ is per-user and gitignored, so this is your local config.
+# Everything here is optional; omit the file entirely to use the defaults.
+
+# Which engine curates and summarises articles:
+#   claude  (default) — Claude Code curates (the /openpaper skill flow)
+#   local             — fully local, agent-free, via a local model (Ollama)
+engine: claude
+
+# How the candidate slate is selected — only used when engine: claude:
+#   agent          (default) — Claude selects, ranks and assigns roles by hand
+#   deterministic            — Claude scores each article's relevance, then the
+#                              SAME arithmetic the local engine uses (rank.py /
+#                              curation_core) picks the slate and roles.
+#                              Reproducible, and obeys the topic/source/
+#                              serendipity caps automatically. Claude still
+#                              writes all the summaries.
+ranking: agent
+
+# --- Settings used only when engine: local ---
+model: gemma4:e4b-it-q4_K_M     # any Ollama model; must be instruction-tuned (-it). Base gemma4:e4b ignores instructions; e2b too weak
+ollama_url: http://localhost:11434
+
+# --- Edition metadata (used by both engines' standalone rendering) ---
+location: "Oslo, Norway"
+tagline: "All the news that fits the day you are about to have."
+
+# Optional: localise the template's fixed labels. The template defaults to
+# English; provide this block to render the chrome in another language.
+# ui:
+#   folio_tagline: "Curated for one reader"
+#   articles: "articles"
+#   briefs: "In brief"
+#   weather: "Weather"
+#   markets: "Markets at dawn"
+#   word_of_day: "Word of the day"

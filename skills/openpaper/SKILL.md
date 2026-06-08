@@ -100,6 +100,18 @@ Run the full pipeline and open in browser.
 
 ## Making a Paper
 
+> **Curation engine.** By default OpenPaper curates with Claude (you, the agent —
+> the flow below). Users can opt into a fully-local, agent-free engine by setting
+> `engine: local` in `.openpaper/config.yaml`. In that mode, do **not** curate
+> manually — run the standalone pipeline and stop:
+>
+> ```bash
+> uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/make_paper.py
+> ```
+>
+> It chains fetch → curate (local model via Ollama) → render. See
+> `references/local-engine.md`. With no config, or `engine: claude`, use the flow below.
+
 ### Stage 1: Ingest
 
 ```bash
@@ -113,6 +125,13 @@ Discovers all fetchers in `.openpaper/sources/`, runs in parallel, deduplicates 
 > **Gate:** Only begin after Stage 1 completes and weather/markets data is collected. Curation needs the full candidate pool.
 
 Read `references/curation-guide.md` for the full process. Summary:
+
+> **Ranking mode.** Check `ranking` in `.openpaper/config.yaml` (default `agent`).
+> If it is `deterministic`, do **not** select and rank by feel — delegate steps
+> 3–5 to the shared arithmetic (`rank.py`, backed by `curation_core` — the same
+> code the local engine uses) so the slate is reproducible and the
+> topic/source/serendipity caps are applied automatically. See **Deterministic
+> ranking** below. With `agent` (or no config), use the steps as written.
 
 1. **Inspect the pool:**
    - `uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/pool.py --data-dir .openpaper stats`
@@ -136,6 +155,26 @@ parallel([
 7. **Assemble edition YAML** — see `references/edition-schema.md` for the schema
 
 Write the YAML to `.openpaper/editions/draft.yaml`.
+
+#### Deterministic ranking (`ranking: deterministic`)
+
+When config has `ranking: deterministic`, replace steps 3–5 above with the shared
+selection pipeline. You supply the relevance judgement; the arithmetic picks the
+slate and assigns roles (same caps and role tiers as the local engine).
+
+1. **Discover interests + caps + the pool:**
+   ```bash
+   uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/rank.py --data-dir .openpaper --print-prefs
+   ```
+   Prints the interest names to score against, the per-topic/per-source/serendipity caps, and every candidate.
+2. **Score relevance** — for every article, judge how strongly it matches each interest, 0.0–1.0 (read full content; batch with subagents if the pool is large). Write JSON mapping `slug → {interest: score}`.
+3. **Rank:**
+   ```bash
+   uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/rank.py --data-dir .openpaper --match-scores scores.json
+   ```
+   (or pipe with `--match-scores -`). Returns the ordered plan: `slug`, `role`, `score`, `primary_topic`, `url`, `image_url`.
+4. **Optional editorial override** — swap the lead, drop a cross-source duplicate, or replace a thin source; keep the same article count.
+5. Continue at step 6 (**Summarize in parallel**) for the returned slate.
 
 ### Stage 2.5: Archive
 
