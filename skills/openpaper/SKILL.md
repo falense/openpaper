@@ -152,6 +152,13 @@ This discovers all `.py` files in `.openpaper/sources/` (excluding `_base.py`), 
 
 This is where you act as editor-in-chief. Read `references/curation-guide.md` for the full curation process.
 
+> **Ranking mode.** Check `ranking` in `.openpaper/config.yaml` (default `agent`).
+> If it is `deterministic`, do **not** select and rank by feel — delegate
+> selection to the shared arithmetic so the slate is reproducible and the
+> topic/source/serendipity caps are applied automatically. See the
+> **Deterministic ranking** sub-section below; with `agent` (or no config), use
+> steps 1–7 as written.
+
 1. **Read the incoming articles** — scan `.openpaper/incoming/` for new articles
 2. **Read user preferences** — read `.openpaper/preferences.md`
 3. **Score and rank** — evaluate each article against the user's interests
@@ -159,6 +166,33 @@ This is where you act as editor-in-chief. Read `references/curation-guide.md` fo
 5. **Assign editorial weight** — decide which story leads, which are medium features, which are briefs
 6. **Summarize in parallel** — spawn one subagent per selected article to write its summary (see below)
 7. **Assemble the edition** — collect subagent results and compose the edition YAML
+
+#### Deterministic ranking (`ranking: deterministic`)
+
+When config has `ranking: deterministic`, replace steps 3–5 with the shared
+selection pipeline (`rank.py`, backed by `curation_core` — the same code the
+local engine uses). You supply the relevance judgement; the arithmetic picks the
+slate and assigns roles.
+
+1. **Discover interests + caps + the pool:**
+   ```bash
+   uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/rank.py --data-dir .openpaper --print-prefs
+   ```
+   This prints the interest names to score against, the per-topic/per-source/
+   serendipity caps, and every candidate (`slug`, source, title, date).
+2. **Score relevance** — for every article, judge how strongly it matches each
+   interest, 0.0–1.0 (read full content from `incoming/`; batch with subagents if
+   the pool is large). Write a JSON object mapping `slug → {interest: score}`.
+3. **Rank:**
+   ```bash
+   uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/rank.py --data-dir .openpaper --match-scores scores.json
+   ```
+   (or pipe the JSON with `--match-scores -`). It returns the ordered plan:
+   `slug`, `role` (lead/lg/md/brief), `score`, `primary_topic`, `url`, `image_url`.
+4. **Optional editorial override** — you may still swap the lead, drop a
+   near-duplicate (cross-source dedup), or replace a thin source, but keep within
+   the same article count and note any change.
+5. Continue at step 6 (**Summarize in parallel**) for the returned slate.
 
 The edition YAML structure:
 

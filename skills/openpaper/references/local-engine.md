@@ -17,16 +17,31 @@ actually good at:
 
 | Work | Done by |
 | --- | --- |
-| Interest weights, source/recency bonuses, feedback decay | **Code** (`curate.py`) |
+| Interest weights, source/recency bonuses, feedback decay | **Code** (`curation_core.py`) |
 | Topic cap (30%), source cap (40%), serendipity (20%) | **Code** |
 | Role assignment (lead / lg / md / brief), role-length limits | **Code** |
 | Per-article semantic match against the reader's interests | **Model** |
 | Role-calibrated article summaries | **Model** |
 | Weather, markets, rendering | existing scripts (unchanged) |
 
-All the arithmetic mirrors [`curation-guide.md`](curation-guide.md) and is
-unit-tested (`tests/test_curate.py`). The model only ever answers narrow,
-per-article questions — which is what keeps a 2–4B model reliable.
+All the arithmetic lives in `curation_core.py`, mirrors
+[`curation-guide.md`](curation-guide.md), and is unit-tested
+(`tests/test_curate.py`). The model only ever answers narrow, per-article
+questions — which is what keeps a 2–4B model reliable.
+
+### The same arithmetic, from the Claude engine
+
+`curation_core` is engine-agnostic, so the Claude engine can reuse it too. With
+`engine: claude` + `ranking: deterministic` (see
+[`config.example.yaml`](config.example.yaml)), the `/openpaper` skill scores
+relevance itself — Claude-quality judgement on full article text — then runs the
+selection through `rank.py`, which calls the very same
+`score → diversify → balance_sources → assign_roles` pipeline. The two engines
+then differ only in *who scores relevance and writes the summaries*, not in the
+editorial caps or role tiers. The local model's only structural disadvantage is
+the relevance judgement (the table's one `Model` row for matching); swapping in
+Claude there, while keeping the deterministic selection, is what
+`ranking: deterministic` buys.
 
 ## Enable it
 
