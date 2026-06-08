@@ -1,0 +1,10 @@
+.git
+.venv
+.openpaper
+__pycache__
+*.pyc
+.screenshots
+.transcripts
+.memories
+.tmp
+output

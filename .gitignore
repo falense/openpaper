@@ -12,6 +12,10 @@ __pycache__/
 # UV
 uv.lock
 
+# Test harness output and overrides
+output/
+overrides/
+
 # Screenshots (only hero.png is tracked)
 .screenshots/screenshot_*
 .screenshots/fullpage*

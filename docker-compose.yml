@@ -1,0 +1,40 @@
+x-openpaper: &openpaper-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      HOST_UID: 1000
+      HOST_GID: 1000
+      HOST_USER: sondre
+      HOST_HOME: /home/sondre
+  volumes:
+    - ~/.claude:/home/sondre/.claude
+    - ~/.claude.json:/home/sondre/.claude.json
+    - openpaper-cache:/home/sondre/Repositories/OpenPaper/.openpaper/cache
+  environment:
+    - CLAUDE_CODE_OAUTH_TOKEN
+    - UV_LINK_MODE=copy
+
+services:
+  interactive:
+    <<: *openpaper-base
+    command: ["claude", "--dangerously-skip-permissions"]
+    stdin_open: true
+    tty: true
+    profiles:
+      - interactive
+
+  test:
+    <<: *openpaper-base
+    volumes:
+      - ~/.claude:/home/sondre/.claude
+      - ~/.claude.json:/home/sondre/.claude.json
+      - openpaper-cache:/home/sondre/Repositories/OpenPaper/.openpaper/cache
+      - ./output:/output
+      - ./overrides:/overrides:ro
+    command: ["uv", "run", "scripts/test_flow.py", "--verbose"]
+    profiles:
+      - test
+
+volumes:
+  openpaper-cache:

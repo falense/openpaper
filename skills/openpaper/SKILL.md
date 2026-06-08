@@ -8,40 +8,32 @@ description: >
 
 A personalized newspaper that knows only you will ever read it.
 
-OpenPaper is a three-stage pipeline: **Ingest** (fetch news), **Curate** (select and rank), **Present** (render a newspaper). You are the editor-in-chief — you make the editorial decisions about what to include and how to present it.
+Three-stage pipeline: **Ingest** (fetch news) → **Curate** (select and rank) → **Present** (render a newspaper). You are the editor-in-chief.
 
 ## Quick Reference
 
 | Command | What it does |
 |---------|-------------|
-| "Make my paper" | Run the full pipeline: fetch → curate → render |
-| "Add a source" | Analyze a URL and write a fetcher for it |
-| "Show my preferences" | Display and edit the user's preference profile |
-| "Give me feedback on today's paper" | Start the feedback loop |
+| "Make my paper" | Full pipeline: fetch → curate → render |
+| "Add a source" | Analyze a URL and write a fetcher |
+| "Show my preferences" | Display and edit preference profile |
 
-## Usage Modes
+## Running Scripts
 
-OpenPaper works in two modes. The commands throughout this skill use `${CLAUDE_PLUGIN_ROOT}` — **substitute `.` if the variable is not set** (i.e., standalone mode).
+All scripts use `uv run --project`. Use `${CLAUDE_PLUGIN_ROOT}` if set (plugin mode), otherwise `.` (standalone mode):
 
-| Mode | When | `${CLAUDE_PLUGIN_ROOT}` | How to run scripts |
-|------|------|------------------------|--------------------|
-| **Standalone** | Cloned repo, working directory is the repo root | Not set — use `.` instead | `uv run --project . skills/openpaper/scripts/<script>.py` |
-| **Plugin** | Installed as a Claude Code plugin into another project | Set by the plugin system | `uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/<script>.py` |
-
-**Detection:** If `${CLAUDE_PLUGIN_ROOT}` is set, you're in plugin mode. Otherwise, you're in standalone mode and the current working directory is the project root — use `.` wherever this skill references `${CLAUDE_PLUGIN_ROOT}`.
+```bash
+uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/<script>.py <args>
+```
 
 ## Data Directory
 
-All user state lives in `.openpaper/` relative to the working directory:
+All state lives in `.openpaper/` relative to the working directory:
 
 ```
 .openpaper/
-├── sources/           # one .py file per source (+ _base.py deployed by fetch_all)
-│   ├── _base.py
-│   ├── hackernews.py
-│   ├── bbc.py
-│   └── ...
-├── preferences.md
+├── sources/           # one .py per source (+ _base.py auto-deployed)
+├── preferences.md     # user interests and feedback
 ├── incoming/          # raw fetched articles (JSON)
 ├── saved/             # archived articles from past editions
 ├── editions/          # rendered HTML newspapers
@@ -51,49 +43,39 @@ All user state lives in `.openpaper/` relative to the working directory:
 
 ## First Run — Setup Wizard
 
-When `.openpaper/` doesn't exist, guide the user through setup:
+When `.openpaper/` doesn't exist:
 
-### Step 1: Create the data directory
+### 1. Create the data directory
 
 ```bash
 mkdir -p .openpaper/sources .openpaper/incoming .openpaper/saved .openpaper/editions .openpaper/cache
 ```
 
-### Step 2: Ask about news sources
+### 2. Add news sources
 
-Ask the user: "What do you want to read? Give me URLs, RSS feeds, or just topics."
+Say: "What do you want to read? Give me URLs, RSS feeds, or just topics." Then wait for the user's reply.
 
-Before writing any fetchers, deploy the shared base module so imports work:
-
+Deploy the shared base module:
 ```bash
-cp ${CLAUDE_PLUGIN_ROOT}/skills/openpaper/scripts/fetcher_base.py .openpaper/sources/_base.py
+cp ${CLAUDE_PLUGIN_ROOT:-.}/skills/openpaper/scripts/fetcher_base.py .openpaper/sources/_base.py
 ```
 
-For each source the user provides:
+For each source:
+1. **Analyze** — visit the URL, determine type (RSS, HTML, JS-rendered, API)
+2. **Write a fetcher** — create `.openpaper/sources/<name>.py`. Read `references/fetcher-guide.md` for the interface spec and `_base.py` templates.
+3. **Test** — `uv run .openpaper/sources/<name>.py --cache-dir /tmp/openpaper-test-<name>`
+   > **Cache trap:** Always test with `/tmp/`, NOT `.openpaper/cache/`. Using the real cache pollutes `seen.txt` dedup.
+4. **Show** the user what it found
 
-1. **Analyze the source** — visit the URL, determine if it's RSS, static HTML, JS-rendered, or an API
-2. **Write a fetcher** — create `.openpaper/sources/<name>.py` following the fetcher contract. Import from `_base` for shared utilities. Read `references/fetcher-guide.md` for the full interface spec and examples.
-3. **Test the fetcher** — run it and show the user what it pulled:
-   ```bash
-   uv run .openpaper/sources/<name>.py --cache-dir /tmp/openpaper-test-<name>
-   ```
-   > **Cache trap:** Always test with `--cache-dir /tmp/openpaper-test-<name>`, NOT the real cache at `.openpaper/cache/<name>`. If you use the real cache, `fetch_all` will treat all tested articles as already seen (via `seen.txt` dedup) and return 0 new articles.
-4. **Confirm with the user** — "Here are the articles I found from <source>. Does this look right?"
+### 3. Set preferences
 
-Repeat for each source. The user can always add more sources later.
+Create `.openpaper/preferences.md` by chatting with the user about:
+- Topics of interest and how much
+- Articles per edition (default: 14, up to 18)
+- Location (for weather)
+- Markets data wanted?
 
-### Step 3: Set preferences
-
-Create `.openpaper/preferences.md` by asking the user about their interests. At minimum, ask:
-
-- What topics interest you most?
-- How many articles per edition? (default: 14, flexible up to 18)
-- Location (for weather widget)
-- Do you want markets data?
-
-> **Note:** `preferences.md` is read by the AI during curation, not by scripts. Keep it under 2000 characters — enough to capture interests, source preferences, and reading profile, but concise enough to fit in context.
-
-Example `preferences.md`:
+Keep under 2000 characters. Example:
 
 ```markdown
 # My Reading Preferences
@@ -102,22 +84,19 @@ Example `preferences.md`:
 - Technology and AI (very interested)
 - Software engineering (interested)
 - Open source (some interest)
-- Norwegian politics (passing interest)
 
 ## Sources
-Hacker News is my primary source. I also read NRK for Norwegian news.
+Hacker News is my primary source.
 
 ## Reading Profile
-I like ~18 articles, about 25 minutes of reading.
-Include weather for Oslo and markets (Oslo Børs, USD/NOK, S&P 500, Gold, Bitcoin, Brent).
+~14 articles. Include weather for Oslo.
 
 ## Feedback
-(Updated after each edition — the agent adds notes here)
 ```
 
-### Step 4: Generate first edition
+### 4. Generate first edition
 
-Run the full pipeline once to show the user their first paper. Open it in the browser with the preview server.
+Run the full pipeline and open in browser.
 
 ## Making a Paper
 
@@ -127,308 +106,148 @@ Run the full pipeline once to show the user their first paper. Open it in the br
 > manually — run the standalone pipeline and stop:
 >
 > ```bash
-> uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/make_paper.py --data-dir .openpaper
+> uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/make_paper.py --data-dir .openpaper
 > ```
 >
 > It chains fetch → curate (local model via Ollama) → render. See
-> `references/local-engine.md`. With no config, or `engine: claude`, use the
-> flow below.
-
-The full pipeline runs in three stages:
+> `references/local-engine.md`. With no config, or `engine: claude`, use the flow below.
 
 ### Stage 1: Ingest
 
-Run all fetchers to collect fresh articles:
-
 ```bash
-uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/fetch_all.py --data-dir .openpaper
+uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/fetch_all.py --data-dir .openpaper
 ```
 
-This discovers all `.py` files in `.openpaper/sources/` (excluding `_base.py`), runs their fetchers in parallel, deduplicates against `seen.txt` automatically, and writes new articles as JSON to `.openpaper/incoming/`.
+Discovers all fetchers in `.openpaper/sources/`, runs in parallel, deduplicates against `seen.txt`, fetches content, writes new articles to `.openpaper/incoming/`.
 
 ### Stage 2: Curate
 
-> **Gate:** Stage 2 begins only after Stage 1 has fully completed and weather/markets data has been collected. Do not curate until the full candidate pool is available — curation quality depends on seeing every article from every source before making editorial decisions.
+> **Gate:** Only begin after Stage 1 completes and weather/markets data is collected. Curation needs the full candidate pool.
 
-This is where you act as editor-in-chief. Read `references/curation-guide.md` for the full curation process.
+Read `references/curation-guide.md` for the full process. Summary:
 
 > **Ranking mode.** Check `ranking` in `.openpaper/config.yaml` (default `agent`).
-> If it is `deterministic`, do **not** select and rank by feel — delegate
-> selection to the shared arithmetic so the slate is reproducible and the
-> topic/source/serendipity caps are applied automatically. See the
-> **Deterministic ranking** sub-section below; with `agent` (or no config), use
-> steps 1–7 as written.
+> If it is `deterministic`, do **not** select and rank by feel — delegate steps
+> 3–5 to the shared arithmetic (`rank.py`, backed by `curation_core` — the same
+> code the local engine uses) so the slate is reproducible and the
+> topic/source/serendipity caps are applied automatically. See **Deterministic
+> ranking** below. With `agent` (or no config), use the steps as written.
 
-1. **Read the incoming articles** — scan `.openpaper/incoming/` for new articles
-2. **Read user preferences** — read `.openpaper/preferences.md`
-3. **Score and rank** — evaluate each article against the user's interests
-4. **Select** — choose the right number of articles (typically 10-18)
-5. **Assign editorial weight** — decide which story leads, which are medium features, which are briefs
-6. **Summarize in parallel** — spawn one subagent per selected article to write its summary (see below)
-7. **Assemble the edition** — collect subagent results and compose the edition YAML
-
-#### Deterministic ranking (`ranking: deterministic`)
-
-When config has `ranking: deterministic`, replace steps 3–5 with the shared
-selection pipeline (`rank.py`, backed by `curation_core` — the same code the
-local engine uses). You supply the relevance judgement; the arithmetic picks the
-slate and assigns roles.
-
-1. **Discover interests + caps + the pool:**
-   ```bash
-   uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/rank.py --data-dir .openpaper --print-prefs
-   ```
-   This prints the interest names to score against, the per-topic/per-source/
-   serendipity caps, and every candidate (`slug`, source, title, date).
-2. **Score relevance** — for every article, judge how strongly it matches each
-   interest, 0.0–1.0 (read full content from `incoming/`; batch with subagents if
-   the pool is large). Write a JSON object mapping `slug → {interest: score}`.
-3. **Rank:**
-   ```bash
-   uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/rank.py --data-dir .openpaper --match-scores scores.json
-   ```
-   (or pipe the JSON with `--match-scores -`). It returns the ordered plan:
-   `slug`, `role` (lead/lg/md/brief), `score`, `primary_topic`, `url`, `image_url`.
-4. **Optional editorial override** — you may still swap the lead, drop a
-   near-duplicate (cross-source dedup), or replace a thin source, but keep within
-   the same article count and note any change.
-5. Continue at step 6 (**Summarize in parallel**) for the returned slate.
-
-The edition YAML structure:
-
-```yaml
-template: broadsheet
-edition_name: morning
-date: "Thursday, June 4, 2026"
-date_formal: "Thursday, the Fourth of June, MMXXVI"
-volume: auto
-number: auto
-location: "Oslo, Norway"
-reading_time: "22 min"
-article_count: 14
-tagline: "All the news that fits the day you are about to have."
-printed_time: "06:14 CET"
-
-weather:
-  icon: cloud
-  temp: 14
-  description: "Overcast, clearing by noon"
-  high: 17
-  low: 9
-  wind: "NW 8 km/h"
-  forecast:
-    - {day: FRI, temp: 18}
-    - {day: SAT, temp: 21}
-    - {day: SUN, temp: 19}
-    - {day: MON, temp: 16}
-
-markets:
-  - {name: "Oslo Børs", value: "1,486", change: "+0.6%", direction: up}
-  - {name: "USD/NOK", value: "10.42", change: "−0.3%", direction: down}
-  - {name: "S&P 500", value: "5,892", change: "+0.4%", direction: up}
-  - {name: Gold, value: "2,680", change: "+0.2%", direction: up}
-  - {name: Bitcoin, value: "108,450", change: "+1.8%", direction: up}
-  - {name: Brent, value: "72.30", change: "−1.1%", direction: down}
-
-lead:
-  kicker: "The Lead · Public Technology"
-  title: "A Newspaper That Knows Only You Will Ever Read It"
-  deck: "Personalised journalism leaves the laboratory..."
-  byline: "By the OpenPaper Desk · Filed 06:14 in Oslo"
-  paragraphs:
-    - "The spread you are reading..."
-    - "Proponents argue that..."
-  annotation: "because you follow Public Technology"
-  photo_caption: "First light over the harbour..."
-
-stories:
-  - kicker: Climate
-    title: "Fjord Hits a Record..."
-    paragraphs: ["Marine stations..."]
-    size: lg
-    has_thumb: true
-  - kicker: "City Hall"
-    title: "A Budget Written in Public"
-    paragraphs: ["Every line of the coming..."]
-    size: lg
-
-briefs:
-  - {bold: Oslo, text: "moves to publish the source of every algorithm it runs."}
-  - {bold: Krone, text: "steadies after a volatile week."}
-
-sections_index:
-  - {name: Public Tech, page: A2}
-  - {name: "Science & Climate", page: A6}
-
-word_of_day:
-  word: Petrichor
-  definition: "the scent of first rain"
-```
-
-#### Parallel article summarization
-
-After selecting articles and assigning editorial weight (steps 1–5), **do not write summaries yourself**. Instead, spawn one subagent per selected article using `parallel()`:
+1. **Inspect the pool:**
+   - `uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/pool.py --data-dir .openpaper stats`
+   - `uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/pool.py --data-dir .openpaper list --sort points`
+   - `uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/pool.py --data-dir .openpaper show <slug>`
+2. **Read** `.openpaper/preferences.md`
+3. **Score and rank** articles against user interests
+4. **Select** articles (typically 10-18), enforce topic/source diversity
+5. **Assign editorial weight** — lead (1), major/lg (2-3), mid/md (3-5), briefs (4-8)
+6. **Summarize in parallel** — spawn one subagent per article via `parallel()`:
 
 ```
 parallel([
-  () => agent("Summarize this lead article: <article JSON>. Write 3-4 paragraphs..."),
-  () => agent("Summarize this lg article: <article JSON>. Write 2 paragraphs..."),
-  () => agent("Summarize this md article: <article JSON>. Write 1 paragraph..."),
-  () => agent("Write a brief for: <article JSON>. Return bold + one sentence..."),
+  () => agent("Summarize this lead article: <JSON>. Write 3-4 paragraphs, deck, photo_caption..."),
+  () => agent("Summarize this lg article: <JSON>. Write 2 paragraphs..."),
+  () => agent("Write a brief for: <JSON>. Return bold + one sentence..."),
   ...
 ])
 ```
 
-Each subagent receives the **full article content** and its **assigned role** (lead/lg/md/brief). The subagent writes a front-page-ready summary calibrated to that role:
+7. **Assemble edition YAML** — see `references/edition-schema.md` for the schema
 
-| Role      | Output |
-|-----------|--------|
-| **Lead**  | 3–4 paragraphs, drop-cap opening, narrative arc. Plus `deck` and `photo_caption`. |
-| **lg**    | 2 paragraphs — key facts + one quote or detail. Optional `deck`. |
-| **md**    | 1 tight paragraph — who, what, why it matters. |
-| **Brief** | `bold` (source/topic keyword) + `text` (one sentence, max 15 words). |
+Write the YAML to `.openpaper/editions/draft.yaml`.
 
-After all subagents complete, collect their results and assemble the edition YAML. See `references/curation-guide.md` Step 5 for the full specification.
+#### Deterministic ranking (`ranking: deterministic`)
 
-Write this YAML to a temporary file (e.g., `.openpaper/editions/draft.yaml`).
+When config has `ranking: deterministic`, replace steps 3–5 above with the shared
+selection pipeline. You supply the relevance judgement; the arithmetic picks the
+slate and assigns roles (same caps and role tiers as the local engine).
+
+1. **Discover interests + caps + the pool:**
+   ```bash
+   uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/rank.py --data-dir .openpaper --print-prefs
+   ```
+   Prints the interest names to score against, the per-topic/per-source/serendipity caps, and every candidate.
+2. **Score relevance** — for every article, judge how strongly it matches each interest, 0.0–1.0 (read full content; batch with subagents if the pool is large). Write JSON mapping `slug → {interest: score}`.
+3. **Rank:**
+   ```bash
+   uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/rank.py --data-dir .openpaper --match-scores scores.json
+   ```
+   (or pipe with `--match-scores -`). Returns the ordered plan: `slug`, `role`, `score`, `primary_topic`, `url`, `image_url`.
+4. **Optional editorial override** — swap the lead, drop a cross-source duplicate, or replace a thin source; keep the same article count.
+5. Continue at step 6 (**Summarize in parallel**) for the returned slate.
 
 ### Stage 2.5: Archive
 
-After writing the edition YAML, archive selected articles and clean up incoming:
-
-1. `mkdir -p .openpaper/saved/<date>-<edition_name>` (e.g., `2026-06-04-morning`)
-2. Move JSON files for selected articles into the archive folder
-3. Delete remaining unselected files from `.openpaper/incoming/`
-4. Verify `.openpaper/incoming/` is empty
-
-This keeps a record of past editions and prevents stale articles from accumulating.
-
-**Important editorial guidelines:**
-- The lead story should be the most relevant AND most interesting article
-- Balance topics — don't let one category dominate
-- Briefs should be genuinely brief — one sentence each
-- The annotation explains WHY this story was chosen (ties to user interests)
-- Weather and markets should use real data if available, or sensible placeholders
-- **Images:** Use `image_url` values from the fetcher's article data. Never fabricate or guess image URLs. The lead and `lg` stories benefit most from images. See `references/curation-guide.md` for full rules.
+1. `mkdir -p .openpaper/saved/<date>-<edition_name>`
+2. Move selected article JSONs to the archive
+3. Delete remaining from `.openpaper/incoming/`
 
 ### Stage 3: Present
 
-Render the edition YAML into HTML:
-
 ```bash
-uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/render.py --data-dir .openpaper --edition .openpaper/editions/draft.yaml
+uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/render.py --data-dir .openpaper --edition .openpaper/editions/draft.yaml
 ```
 
-Then serve it for preview:
-
+Then preview:
 ```bash
-uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/serve.py --data-dir .openpaper --latest
+uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/serve.py --data-dir .openpaper --latest
 ```
 
-Open the URL in the user's browser and ask for feedback.
+Open in browser. Say: "Here's your paper — let me know what you think."
 
 ## Adding a Source
 
-When the user says "add <url> as a source":
+1. Visit the URL (screenshot or fetch)
+2. Determine type: RSS, HTML, JS-rendered, API
+3. Read `references/fetcher-guide.md` for the contract and `_base.py` templates
+4. Write `.openpaper/sources/<name>.py`
+5. Test with `/tmp/` cache dir (not the real one)
+6. Show results to the user
 
-1. Visit the URL (use the screenshot skill or fetch it directly)
-2. Determine the source type: RSS, static HTML, JS-rendered, or API
-3. Read `references/fetcher-guide.md` for the fetcher contract and examples
-4. Write the fetcher: `.openpaper/sources/<name>.py` — import helpers from `_base`
-5. Test it: `uv run .openpaper/sources/<name>.py --cache-dir /tmp/openpaper-test-<name>`
-   > Use `/tmp/` for testing — not the real cache. See the cache trap warning above.
-6. Show the user what it found and confirm
-
-When writing fetchers:
-- **RSS/API first, Playwright for everything else** — never use httpx to fetch web pages
-  - RSS sources: use `feedparser` + `urllib.request` for the feed, Playwright for article content
-  - HTML listing sources: use Playwright for both listing and content (one browser instance)
-  - API sources: use `httpx` only for machine-readable JSON/XML APIs, Playwright for article content
-- Each fetcher must be standalone with PEP 723 inline dependencies
-- Output JSON array to stdout, errors to stderr
-- Fetchers must detect and exclude paywalled articles — see `references/fetcher-guide.md` for the `detect_paywall` reference implementation
-- Handle failures gracefully — return partial results, never crash
-- Requires `playwright install chromium` in the environment
+**Key rules:**
+- RSS/API first, Playwright for everything else — never use httpx for web pages
+- Each fetcher is standalone with PEP 723 inline dependencies
+- Must detect and exclude paywalled articles (see `_base.py` `detect_paywall`)
 
 ## Feedback Loop
 
-After the user reads their paper, ask for feedback. Update `.openpaper/preferences.md` based on their signals:
-
-- **"More like this"** → increase weight for the article's topic/source
-- **"Less of this"** → decrease weight
-- **"Love this"** → strong positive signal, add to interests
-- **"Hide this source"** → add to exclusion list
-- Free-text notes → add verbatim to the Feedback section
-
-The preference file accumulates feedback over time. Each edition should get slightly better at matching the user's interests.
-
-## Repairing Broken Fetchers
-
-Fetchers can break when sites change their layout. When a fetcher fails:
-
-1. Check the error output
-2. Visit the source URL to see what changed
-3. Rewrite the fetcher to handle the new structure
-4. Test and confirm with the user
-
-## Templates
-
-One responsive template is available in `${CLAUDE_PLUGIN_ROOT}/skills/openpaper/templates/`:
-
-- **broadsheet.html.j2** — responsive layout (375px mobile through 1960px spread), CSS multi-column story grid, feature lead story with photo
-
-It uses:
-- UnifrakturCook blackletter for the masthead
-- Newsreader/PT Serif for headlines and body
-- Animated paper grain, halftone photo effects, ink-draw headline reveals
-- Responsive weather and markets widgets
-
-The user can also ask for completely custom output formats — plain text, markdown, email-friendly HTML, PDF, etc. For custom formats, compose the output directly rather than using the templates.
+After the user reads their paper, update `.openpaper/preferences.md`:
+- **"More like this"** → boost topic weight
+- **"Less of this"** → reduce weight
+- **"Love this"** → strong positive, add to interests
+- **"Hide this source"** → exclusion list
+- Free-text notes → add verbatim to Feedback section
 
 ## Bundled Data Fetchers
 
-The plugin ships with infrastructure fetchers for weather and markets. Run these during curation and paste their output into the edition YAML.
-
 ### Weather (yr.no)
-
 ```bash
-uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/fetchers/weather.py \
+uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/fetchers/weather.py \
   --lat 59.91 --lon 10.75 --location-name "Oslo, Norway" \
   --cache-dir .openpaper/cache/weather
 ```
 
-Outputs JSON matching the edition `weather` sub-schema. Uses the free yr.no locationforecast API. Caches for 1 hour.
-
 ### Markets (Yahoo Finance)
-
 ```bash
-uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/fetchers/markets.py \
+uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/fetchers/markets.py \
   --cache-dir .openpaper/cache/markets
 ```
 
-Default symbols: Oslo Børs, USD/NOK, S&P 500, Gold, Bitcoin, Brent. Override with `--symbols` and `--names`. Outputs JSON array matching the edition `markets` sub-schema. Caches for 15 minutes.
+Default symbols: Oslo Børs, USD/NOK, S&P 500, Gold, Bitcoin, Brent. Override with `--symbols` and `--names`.
 
 ## Edition Schema
 
-The edition YAML must conform to the schema in `references/edition-schema.md`. Key points:
-
-- Stories are rendered in array order using CSS multi-column layout — most important first
-- Story sizes: sm/md/lg
-- Every article should include a `url` field linking to the original source
-- The lead and stories can include `image_url` for real article images (grayscale + halftone applied automatically). Only use URLs extracted by the fetcher — never fabricate or guess image URLs
+See `references/edition-schema.md` for the full schema. Key points:
+- Stories use `section: "col1"` (string), not `column: 1` (integer)
+- Story sizes: `sm`, `md`, `lg`
+- Every article should include a `url` field for the original source
+- Lead and `lg` stories can include `image_url` — only from fetcher data, never fabricated
 
 ## Script Reference
-
-All scripts use PEP 723 inline dependencies and run via `uv run`:
 
 | Script | Purpose | Key flags |
 |--------|---------|-----------|
 | `fetch_all.py` | Run all source fetchers | `--data-dir`, `--source`, `--parallel` |
-| `render.py` | Generate HTML from edition YAML | `--data-dir`, `--edition`, `--output` |
-| `serve.py` | Preview server for editions | `--data-dir`, `--port`, `--latest` |
-
-Always use `--project` when running scripts so `uv` can resolve dependencies from `pyproject.toml`. Use `${CLAUDE_PLUGIN_ROOT}` in plugin mode or `.` in standalone mode (see **Usage Modes** above):
-
-```bash
-uv run --project ${CLAUDE_PLUGIN_ROOT} skills/openpaper/scripts/<script>.py <args>
-```
+| `render.py` | HTML from edition YAML | `--data-dir`, `--edition`, `--output` |
+| `serve.py` | Preview server | `--data-dir`, `--port`, `--latest` |
+| `pool.py` | Inspect article pool | `--data-dir` + subcommands: `stats`, `list`, `show` |
