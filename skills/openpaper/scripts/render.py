@@ -23,6 +23,47 @@ from jinja2 import Environment, FileSystemLoader
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
+# Fixed UI labels rendered by the template (section headings, footer, etc.).
+# English is the default; a locale bundle or per-edition `ui:` block overrides it.
+DEFAULT_LABELS = {
+    "folio_tagline": "Curated for One Reader",
+    "articles": "Articles",
+    "masthead_note": "A daily edition, composed this morning, for you and no one else.",
+    "caption_above": "Above",
+    "briefs": "The Briefs",
+    "more": "More This Morning",
+    "weather": "The Weather",
+    "hi": "Hi",
+    "lo": "Lo",
+    "wind_label": "Wind",
+    "markets": "Markets at Dawn",
+    "inside": "Inside Today",
+    "morning_edition": "The Morning Edition",
+    "word_of_day": "Word of the Day",
+    "printed": "Printed Fresh",
+}
+
+# Bundled translations of DEFAULT_LABELS, selected via the edition's `locale` field.
+LOCALE_LABELS = {
+    "nb": {
+        "folio_tagline": "Kuratert for én leser",
+        "articles": "artikler",
+        "masthead_note": "En daglig utgave, satt sammen i morges, for deg og ingen andre.",
+        "caption_above": "Over",
+        "briefs": "Kort sagt",
+        "more": "Mer i morges",
+        "weather": "Været",
+        "hi": "Opp",
+        "lo": "Ned",
+        "wind_label": "Vind",
+        "markets": "Børs ved daggry",
+        "inside": "I avisen i dag",
+        "morning_edition": "Morgenutgaven",
+        "word_of_day": "Dagens ord",
+        "printed": "Trykt friskt",
+    },
+}
+
 ROMAN_NUMERALS = [
     (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
     (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
@@ -100,12 +141,29 @@ def resolve_edition_number(edition: dict, data_dir: Path) -> None:
     )
 
 
+def resolve_labels(edition: dict) -> None:
+    """Populate edition['ui'] with locale-aware UI label defaults.
+
+    Precedence, lowest to highest: English DEFAULT_LABELS, the selected locale's
+    bundle (from edition['locale'], default 'en'), then any per-edition 'ui'
+    overrides already present in the YAML. The template reads edition.ui.<key>
+    directly, so this guarantees every label is defined.
+    """
+    locale = edition.get("locale", "en")
+    edition["ui"] = {
+        **DEFAULT_LABELS,
+        **LOCALE_LABELS.get(locale, {}),
+        **(edition.get("ui") or {}),
+    }
+
+
 def load_edition(edition_path: Path, data_dir: Path) -> dict:
     """Load the edition YAML and resolve article references to full content."""
     with open(edition_path) as f:
         edition = yaml.safe_load(f)
 
     resolve_edition_number(edition, data_dir)
+    resolve_labels(edition)
 
     incoming_dir = data_dir / "incoming"
 

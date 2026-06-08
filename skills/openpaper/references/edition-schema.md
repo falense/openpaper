@@ -13,19 +13,64 @@ Stories use `story.section` with string values (`"col1"`, `"col2"`, etc.), **not
 
 ## Top-level fields
 
-| Field | Type | Required | Example |
-|-------|------|----------|---------|
-| `template` | string | **yes** | `"broadsheet"` |
-| `edition_name` | string | **yes** | `"morning"` |
-| `date` | string | **yes** | `"Thursday, June 4, 2026"` |
-| `date_formal` | string | optional | `"Thursday, the Fourth of June, MMXXVI"` |
-| `volume` | string | **yes** | `"MMXXVI"` or `"auto"` |
-| `number` | string | **yes** | `"156"` or `"auto"` |
-| `location` | string | **yes** | `"Oslo, Norway"` |
-| `reading_time` | string | **yes** | `"22 min"` |
-| `article_count` | int | **yes** | `14` |
-| `tagline` | string | **yes** | `"All the news that fits the day you are about to have."` |
-| `printed_time` | string | **yes** | `"06:14 CET"` |
+| Field            | Type   | Required        | Example                                        | Notes |
+|------------------|--------|-----------------|------------------------------------------------|-------|
+| `template`       | string | **yes**         | `"broadsheet"`                                 | Selects the Jinja2 template |
+| `edition_name`   | string | **yes**         | `"morning"`                                    | Used in output filename |
+| `date`           | string | **yes**         | `"Thursday, June 4, 2026"`                     | Human-readable, appears in dateline |
+| `date_formal`    | string | optional        | `"Thursday, the Fourth of June, MMXXVI"`       | Alternative formal dateline |
+| `volume`         | string | **yes**         | `"MMXXVI"` or `"auto"`                         | Roman numeral year; `"auto"` uses current year |
+| `number`         | string | **yes**         | `"156"` or `"auto"`                            | Issue number; `"auto"` increments from previous editions |
+| `location`       | string | **yes**         | `"Oslo, Norway"`                               | Appears in dateline |
+| `reading_time`   | string | **yes**         | `"22 min"`                                     | Displayed in dateline |
+| `article_count`  | int    | **yes**         | `14`                                           | Shown in header bar |
+| `tagline`        | string | **yes**         | `"All the news that fits the day you are about to have."` | Displayed in left flank |
+| `printed_time`   | string | **yes**         | `"06:14 CET"`                                  | Footer timestamp |
+| `locale`         | string | optional        | `"nb"`                                         | Language for fixed UI labels and `<html lang>`; defaults to `"en"` |
+| `ui`             | object | optional        | see below                                      | Per-edition overrides for fixed UI labels |
+
+---
+
+## `locale` and `ui` (interface labels)
+
+The template's fixed chrome — section headings, the folio line, weather/footer labels —
+is **not** part of the article data. `render.py` fills `edition.ui` before rendering,
+with this precedence (lowest to highest):
+
+1. English `DEFAULT_LABELS` (built into `render.py`)
+2. The bundle for `edition.locale` (e.g. `"nb"` for Norwegian bokmål), if one exists
+3. Any keys you set explicitly in the edition's `ui:` block
+
+So for a Norwegian paper you only need `locale: nb`. Use `ui:` to override individual
+labels regardless of locale. The `<html lang>` attribute follows `locale`.
+
+```yaml
+locale: nb            # selects the bundled Norwegian labels
+ui:                   # optional — override individual labels
+  markets: "Markeder"
+```
+
+### `ui` keys
+
+| Key               | English default                                              | Where it renders          |
+|-------------------|--------------------------------------------------------------|---------------------------|
+| `folio_tagline`   | `Curated for One Reader`                                     | Folio bar                 |
+| `articles`        | `Articles`                                                   | Folio bar (after count)   |
+| `masthead_note`   | `A daily edition, composed this morning, for you and no one else.` | Masthead right flank |
+| `caption_above`   | `Above`                                                      | Lead photo caption prefix |
+| `briefs`          | `The Briefs`                                                 | Briefs column heading     |
+| `more`            | `More This Morning`                                          | Section label below briefs|
+| `weather`         | `The Weather`                                                | Weather box heading       |
+| `hi`              | `Hi`                                                         | Weather high prefix       |
+| `lo`              | `Lo`                                                         | Weather low prefix        |
+| `wind_label`      | `Wind`                                                       | Weather wind prefix       |
+| `markets`         | `Markets at Dawn`                                            | Markets box heading       |
+| `inside`          | `Inside Today`                                               | Sections-index heading    |
+| `morning_edition` | `The Morning Edition`                                        | Footer                    |
+| `word_of_day`     | `Word of the Day`                                            | Footer                    |
+| `printed`         | `Printed Fresh`                                              | Footer timestamp prefix   |
+
+To add a new language, add a bundle to `LOCALE_LABELS` in `render.py`.
 
 ---
 
