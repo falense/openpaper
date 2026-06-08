@@ -51,7 +51,7 @@ Claude there, while keeping the deterministic selection, is what
 2. Make a paper with one command, no Claude:
 
    ```bash
-   uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
+   uv run skills/openpaper/scripts/make_paper.py
    ```
 
    `make_paper.py` chains `fetch_all.py` → `curate.py` → `render.py`, then

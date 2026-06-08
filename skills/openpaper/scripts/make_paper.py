@@ -8,7 +8,7 @@ This is the entry point for `engine: local`. It chains the existing fetch and
 render scripts around the local curation engine (curate.py), so a daily paper
 can be produced from a plain shell with a local model and no Claude Code session.
 
-    uv run make_paper.py --data-dir .openpaper
+    uv run make_paper.py        # defaults to --data-dir .openpaper
 
 By default it ends by launching the preview server (serve.py) and opening the
 edition in a browser — the same UX as the Claude flow. Pass --no-serve for

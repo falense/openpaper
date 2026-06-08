@@ -106,7 +106,7 @@ Run the full pipeline and open in browser.
 > manually — run the standalone pipeline and stop:
 >
 > ```bash
-> uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/make_paper.py --data-dir .openpaper
+> uv run --project ${CLAUDE_PLUGIN_ROOT:-.} skills/openpaper/scripts/make_paper.py
 > ```
 >
 > It chains fetch → curate (local model via Ollama) → render. See

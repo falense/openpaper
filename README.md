@@ -94,7 +94,7 @@ On first run, OpenPaper walks you through adding sources, setting preferences, a
 Prefer offline and agent-free? Install [Ollama](https://ollama.com), then run one command:
 
 ```bash
-uv run skills/openpaper/scripts/make_paper.py --data-dir .openpaper
+uv run skills/openpaper/scripts/make_paper.py
 ```
 
 It bootstraps everything on first run and curates with a local model instead of Claude. See the [local engine guide](skills/openpaper/references/local-engine.md) for how it works, model notes, and limits.
